@@ -16,7 +16,7 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "types": ["node"],
-    "strict": false,
+    "strict": true,
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src", "vite.config.ts"]
