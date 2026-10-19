@@ -95,7 +95,7 @@ export function AssignModal({ enquiryId, onClose }: { enquiryId: string; onClose
   const load: Record<string, string> = { mh: '4 open enquiries · works Leeds and Harrogate', ec: '6 open enquiries · works Ripon and Otley', jb: '3 open enquiries · on a visit until 2pm' };
   return (
     <Modal title={e.assigned ? 'Move to another salesperson' : 'Assign to a salesperson'} sub={`${e.name} · ${e.product} · ${e.postcode}`} onClose={onClose} width={560}
-      footer={<><button className="btn btn-grey" onClick={onClose}>Cancel</button><button className="btn btn-primary" onClick={() => { set('enquiries', es => es.map(x => (x.id === e.id ? { ...x, assigned: pick, followUp: follow, next: x.stage === 'New Enquiry' ? 'First call' : x.next, nextDue: fmtDate(follow) } : x))); toast(`${staffById(pick)?.name} has it · follow-up ${fmtDate(follow)} · they’ll see it on their phone`); onClose(); }}>Assign</button></>}>
+      footer={<><button className="btn btn-grey" onClick={onClose}>Cancel</button><button className="btn btn-primary" onClick={() => { set('enquiries', es => es.map(x => (x.id === e.id ? { ...x, assigned: pick, followUp: follow, next: x.stage === 'New Enquiry' ? 'Contact customer' : x.next, nextDue: fmtDate(follow) } : x))); toast(`${staffById(pick)?.name} has it · follow-up ${fmtDate(follow)} · they’ll see it on their phone`); onClose(); }}>Assign</button></>}>
       <div className="vstack" style={{ gap: 10 }}>
         {salespeople.map(s => (
           <button key={s.id} onClick={() => setPick(s.id)} className="card" style={{ flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12, borderColor: pick === s.id ? 'var(--primary)' : undefined, background: pick === s.id ? 'var(--tint-2)' : '#fff', textAlign: 'left' }}>
@@ -167,7 +167,7 @@ export function DeliveryProblemModal({ onClose, deliveryRef }: { onClose: () => 
 /* Steps 18–21: book, reschedule or cancel an installation */
 export function BookInstallModal({ onClose, jobId, event, presetTeam, presetDate }: { onClose: () => void; jobId?: string; event?: DiaryEvent; presetTeam?: string; presetDate?: string }) {
   const toast = useToast();
-  const { jobs, set, clash, updateJob, deliveries } = useStore();
+  const { jobs, set, clash, updateJob, deliveries, enquiries, updEnq } = useStore();
   const mode = event ? 'change' : 'new';
   const [job, setJob] = useState(event?.job || jobId || 'JG-10477');
   const [team, setTeam] = useState(event?.team || presetTeam || 't1');
@@ -183,8 +183,10 @@ export function BookInstallModal({ onClose, jobId, event, presetTeam, presetDate
   const canBook = !hit && (allReady || reason.trim().length > 4);
   const save = () => {
     if (mode === 'new') {
-      set('events', es => [...es, { id: 'ev' + Date.now(), team, date: start, days, kind: 'install', title: `${j.customer.split(' ')[0]} · ${j.products.split(' ')[0]}`, sub: `${j.id} · ${j.address.split(', ')[1] || ''}`, photo: j.photo, job: j.id }]);
+      set('events', es => [...es.filter(x => !(x.team === 'un' && x.job === j.id)), { id: 'ev' + Date.now(), team, date: start, days, kind: 'install', title: `${j.customer.split(' ')[0]} · ${j.products.split(' ')[0]}`, sub: `${j.id} · ${j.address.split(', ')[1] || ''}`, photo: j.photo, job: j.id }]);
       updateJob(j.id, { team, installDate: start, installDays: days, next: 'Installation', due: fmtDate(start) }, `Installation booked: ${teamById(team)?.name}, ${fmtDate(start)} for ${days} day${days > 1 ? 's' : ''}${allReady ? '' : ` · checks overridden — reason: ${reason}`}. Customer and installers told.`);
+      const enq = enquiries.find(x => x.jobId === j.id);
+      if (enq) updEnq(enq.id, { next: 'Installation', nextDue: fmtDate(start) }, { kind: 'note', title: `Installation booked · ${teamById(team)?.name}`, body: `${fmtDate(start, { weekday: 'long', day: 'numeric', month: 'long' })} for ${days} day${days > 1 ? 's' : ''} (${teamById(team)?.members}). Customer and installers told.`, who: 'Sarah Mitchell' });
       toast(`Booked · ${teamById(team)?.name} · ${fmtDate(start)} · customer and installers told`);
     } else {
       set('events', es => es.map(e => (e.id === event!.id ? { ...e, team, date: start, days } : e)));

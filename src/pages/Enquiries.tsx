@@ -12,7 +12,7 @@ import { useStore, TODAY, fmtDate } from '../data/store';
 export const stageTone: Record<string, string> = { 'New Enquiry': 'info', Contacted: 'jade', Appointment: 'jade', Survey: 'warn', 'Quote Sent': 'info', 'Follow-up': 'warn', Won: 'ok', Lost: 'err' };
 const typeTone: Record<string, string> = { Sales: 'jade', 'Existing job': 'info', Aftercare: 'warn' };
 
-function RouteModal({ id, onClose }: { id: string; onClose: () => void }) {
+export function RouteModal({ id, onClose }: { id: string; onClose: () => void }) {
   const toast = useToast();
   const { enquiries, jobs, set, log } = useStore();
   const e = enquiries.find(x => x.id === id)!;
@@ -65,7 +65,7 @@ export function Enquiries() {
         <div className="toolbar">
           <div className="input-icon" style={{ width: 280 }}><IconSearch size={16} /><input className="input" style={{ height: 36 }} placeholder="Search name, postcode or reference" value={q} onChange={e => setQ(e.target.value)} /></div>
           <div className="hstack" style={{ flexWrap: 'wrap', gap: 6 }}>
-            {['All', 'Unassigned', 'Not sales', 'New Enquiry', 'Contacted', 'Appointment', 'Quote Sent', 'Follow-up', 'Won', 'Lost'].map(s => (
+            {['All', 'Unassigned', 'Not sales', 'New Enquiry', 'Contacted', 'Appointment', 'Survey', 'Quote Sent', 'Follow-up', 'Won', 'Lost'].map(s => (
               <button key={s} className={`chip ${stage === s ? 'on' : ''}`} onClick={() => setStage(s)}>{s}<span className="n">{count(s)}</span></button>
             ))}
           </div>
@@ -100,100 +100,6 @@ export function Enquiries() {
       {modal === 'new' && <NewEnquiryModal onClose={() => setModal(null)} />}
       {assign && <AssignModal enquiryId={assign} onClose={() => setAssign(null)} />}
       {route && <RouteModal id={route} onClose={() => setRoute(null)} />}
-    </>
-  );
-}
-
-export function EnquiryDetail() {
-  const { id } = useParams();
-  const toast = useToast();
-  const { enquiries, set } = useStore();
-  const e = enquiries.find(x => x.id === id) || enquiries[0];
-  const [tab, setTab] = useState('info');
-  const [modal, setModal] = useState<string | null>(null);
-  const s = staffById(e.assigned);
-  const sIdx = STAGES.indexOf(e.stage);
-  const move = (st: any) => { set('enquiries', es => es.map(x => (x.id === e.id ? { ...x, stage: st, stageDays: 0 } : x))); toast(st === 'Won' ? 'Marked as Won · it now comes back to the office as a new job' : `Moved to ${st}`); };
-  return (
-    <>
-      <PageHead title={e.name} crumbs={[{ label: 'Enquiries', to: '/enquiries' }, { label: e.name }]}
-        actions={<><button className="btn btn-grey" onClick={() => setModal('call')}><IconPhoneCall size={16} />Log a call</button><button className="btn btn-outline"><IconMail size={16} />Send email</button>
-          {e.type !== 'Sales' ? <button className="btn btn-dark" onClick={() => setModal('route')}><IconArrowsSplit size={16} />Route it</button> : <button className="btn btn-dark" onClick={() => setModal('assign')}><IconUser size={16} />{s ? 'Move to another salesperson' : 'Assign to sales'}</button>}</>} />
-      {e.type !== 'Sales' && !e.routedTo && <div className="alert warn"><IconArrowsSplit size={18} /><div><b>This is not a new sale.</b> It looks like {e.type === 'Aftercare' ? 'an aftercare problem' : 'a question about a current job'}. Send it to the right person — it should not go to Sales.</div><button className="btn btn-dark btn-xs ml-auto" onClick={() => setModal('route')}>Route it</button></div>}
-      {e.type === 'Sales' && !s && <div className="alert warn"><IconUserPlus size={18} /><div><b>Not assigned yet.</b> Choose the salesperson who should handle it and set the first follow-up date.</div><button className="btn btn-dark btn-xs ml-auto" onClick={() => setModal('assign')}>Assign</button></div>}
-      <div className="row">
-        <div className="col grow">
-          <Card>
-            <div className="hstack" style={{ gap: 16, alignItems: 'flex-start' }}>
-              <img src={IMG[e.photo]} alt="" style={{ width: 84, height: 84, borderRadius: 12, objectFit: 'cover' }} />
-              <div className="vstack" style={{ gap: 8, flex: 1 }}>
-                <div className="hstack" style={{ flexWrap: 'wrap' }}><h2 style={{ fontSize: 20 }}>{e.name}</h2><Tag tone={stageTone[e.stage]}>{e.stage}</Tag><Tag tone={typeTone[e.type]}>{e.type === 'Sales' ? 'Sales enquiry' : e.type}</Tag><Tag tone="grey">{e.product}</Tag></div>
-                <div className="hstack small t2" style={{ gap: 16, flexWrap: 'wrap' }}><span className="hstack" style={{ gap: 5 }}><IconPhone size={14} />{e.phone}</span><span className="hstack" style={{ gap: 5 }}><IconMail size={14} />{e.email}</span><span className="hstack" style={{ gap: 5 }}><IconHome size={14} />{e.address}, {e.postcode}</span></div>
-                <div className="hstack" style={{ gap: 10, marginTop: 4, flexWrap: 'wrap' }}>
-                  {[['Received', e.received], ['Salesperson', s ? s.name : 'Not assigned'], ['Next step', `${e.next} · ${e.nextDue}`], ['First follow-up', e.followUp ? fmtDate(e.followUp) : '—'], ['Estimated value', e.value ? gbp(e.value) : '—']].map(([l, v]) => <div key={l} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px' }}><div className="tiny muted">{l}</div><b style={{ fontSize: 13, color: v === 'Not assigned' ? 'var(--err)' : 'var(--text)' }}>{v}</b></div>)}
-                </div>
-              </div>
-            </div>
-            <Tabs value={tab} onChange={setTab} items={[{ id: 'info', label: 'Basic info' }, { id: 'property', label: 'Property' }, { id: 'project', label: 'Project' }]} />
-            {tab === 'info' && (
-              <div className="grid-4" style={{ rowGap: 16 }}>
-                {[['Name', e.name], ['Mobile', e.phone], ['Email', e.email], ['Received', e.received], ['Property address', e.address], ['Postcode', e.postcode], ['Enquiry source', e.source], ['Interested in', e.product], ['Salesperson', s ? s.name : 'Not assigned yet'], ['Best way to contact', 'Phone, evenings'], ['Duplicate check', 'No match found'], ['Next step', e.next]].map(([l, v]) => (
-                  <div key={l} className="vstack" style={{ gap: 4 }}><span className="small muted">{l}</span><b style={{ fontSize: 13, color: v === 'Not assigned yet' ? 'var(--err)' : 'var(--text)' }}>{v}</b></div>
-                ))}
-              </div>
-            )}
-            {tab === 'property' && <div className="grid-4" style={{ rowGap: 16 }}>{[['Property type', 'Semi-detached'], ['Built', '1930s'], ['Number of windows', '11'], ['Parking', 'Driveway'], ['Access', 'Side gate'], ['Conservation area', 'No'], ['Listed building', 'No'], ['Notes', 'Dog in the garden']].map(([l, v]) => <div key={l} className="vstack" style={{ gap: 4 }}><span className="small muted">{l}</span><b style={{ fontSize: 13 }}>{v}</b></div>)}</div>}
-            {tab === 'project' && <div className="alert info"><IconFileText size={16} />When Sales marks this enquiry as Won, it becomes a job and comes back to the office. Surveys and quotes made before then move across automatically.</div>}
-          </Card>
-          {e.type === 'Sales' && (
-            <Card>
-              <CardHead title="Pipeline stage" sub={`${e.stageDays} day${e.stageDays === 1 ? '' : 's'} in this stage`} right={<span className="small muted">Usually moved by the salesperson on their phone</span>} />
-              <div className="stepper">
-                {STAGES.filter(x => x !== 'Lost').map((st, i) => (
-                  <React.Fragment key={st}>
-                    {i > 0 && <span className="step-line" />}
-                    <button className={`step ${i < sIdx ? 'done' : i === sIdx ? 'now' : ''}`} onClick={() => move(st)}>{i < sIdx && <IconCircleCheck size={14} />}{st}</button>
-                  </React.Fragment>
-                ))}
-                <span className="step-line" /><button className={`step ${e.stage === 'Lost' ? 'now' : ''}`} style={e.stage === 'Lost' ? { background: 'var(--err)', borderColor: 'var(--err)' } : {}} onClick={() => move('Lost')}><IconX size={14} />Lost</button>
-              </div>
-            </Card>
-          )}
-          <Card>
-            <CardHead title="Connected systems" />
-            <div className="grid-4" style={{ gap: 14 }}>
-              {[['O', 'Outlook', 'Email and calendar', 'Connected', 'ok'], ['F', 'Framepoint', 'Quotes', 'Connected', 'ok'], ['X', 'Xero', 'Invoices and payments', 'View only', 'jade'], ['P', 'Customer portal', 'Invite this customer', 'Send invite', 'jade']].map(([i, n, d, st, tone]) => (
-                <div key={n} className="card" style={{ alignItems: 'center', textAlign: 'center', gap: 6, padding: '22px 12px' }}>
-                  <Avatar i={i} size={38} /><b style={{ fontSize: 13.5, marginTop: 4 }}>{n}</b><span className="small muted">{d}</span>
-                  {st === 'Send invite' ? <button className="link" onClick={() => toast('Portal invite sent')}>{st}</button> : <span className="small b" style={{ color: tone === 'ok' ? 'var(--ok)' : 'var(--primary-dark)' }}>{st}</span>}
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
-        <div className="col w-360">
-          <Card>
-            <CardHead title="Actions" right={<button className="btn btn-outline btn-xs" onClick={() => setModal('task')}><IconPlus size={13} />New task</button>} />
-            <div className="list">
-              {[[IconNotes, 'Notes', 2, ''], [IconChecklist, 'Tasks', 1, 'task'], [IconPaperclip, 'Attachments', 3, ''], [IconCalendarEvent, 'Appointments', 0, 'appt'], [IconPhoneCall, 'Call logs', 1, 'call']].map(([I, l, n, m]: any) => (
-                <div key={l} className="hstack" style={{ gap: 10, padding: '11px 0' }}><Tile icon={<I size={16} />} size={30} radius={8} /><b style={{ fontSize: 13 }}>{l}</b><Tag tone="grey">{n}</Tag><button className="link ml-auto" onClick={() => (m === 'appt' ? toast('Open Appointments & tasks to book a visit') : m && setModal(m))}>Add</button><IconChevronRight size={15} color="#6b7a78" /></div>
-              ))}
-            </div>
-          </Card>
-          <Card>
-            <CardHead title="Recent activity" right={<button className="link">View all</button>} />
-            <div className="timeline">
-              {[[IconCircleCheck, 'Duplicate check passed', '09:20 · Sarah Mitchell'], [IconUser, 'Customer record created', '09:18 · Sarah Mitchell'], [IconWorld, 'Enquiry received', `${e.received} · ${e.source}`]].map(([I, t, sub]: any) => (
-                <div key={t} className="tl-item"><Tile icon={<I size={15} />} size={30} radius={15} /><div className="vstack" style={{ gap: 2 }}><b style={{ fontSize: 13 }}>{t}</b><span className="tiny muted">{sub}</span></div></div>
-              ))}
-            </div>
-          </Card>
-        </div>
-      </div>
-      {modal === 'assign' && <AssignModal enquiryId={e.id} onClose={() => setModal(null)} />}
-      {modal === 'route' && <RouteModal id={e.id} onClose={() => setModal(null)} />}
-      {modal === 'call' && <LogCallModal who={e.name} onClose={() => setModal(null)} />}
-      {modal === 'task' && <AddTaskModal onClose={() => setModal(null)} />}
     </>
   );
 }

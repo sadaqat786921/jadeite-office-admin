@@ -28,7 +28,7 @@ export function Snags() {
           <div key={s.id} className="card" style={{ cursor: 'pointer', gap: 12 }} onClick={() => setOpen(s)}>
             <div className="hstack" style={{ gap: 12 }}>
               <img src={IMG[s.photo]} alt="" style={{ width: 56, height: 56, borderRadius: 10, objectFit: 'cover' }} />
-              <div className="vstack" style={{ gap: 3, flex: 1 }}><b style={{ fontSize: 14 }}>{s.title}</b><span className="small muted">{s.customer} · {s.job}</span></div>
+              <div className="vstack" style={{ gap: 3, flex: 1 }}><b style={{ fontSize: 14 }}>{s.title}</b><span className="small muted">{s.customer} · {s.job} · {s.owner}</span></div>{(s as any).kind === 'Aftercare' && <Tag tone="info">Aftercare</Tag>}
             </div>
             <span className="small t2">{s.detail}</span>
             <div className="between" style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>

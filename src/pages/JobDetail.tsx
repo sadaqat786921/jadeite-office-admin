@@ -13,12 +13,13 @@ import { jobTone } from './Jobs';
 
 export default function JobDetail() {
   const { id } = useParams();
-  const { jobs, tasks, snags, updateJob, events } = useStore();
+  const { jobs, tasks, snags, updateJob, events, enquiries } = useStore();
+  const record = enquiries.find(x => x.jobId === (id || ''));
   const j = jobs.find(x => x.id === id) || jobs[0];
   const toast = useToast();
   const jobTasks = tasks.filter(t => t.job === j.id);
   const openSnags = snags.filter(sn => sn.job === j.id && sn.status !== 'Fixed');
-  const booking = events.find(e => e.job === j.id && e.kind === 'install' && e.date >= TODAY);
+  const booking = events.find(e => e.job === j.id && e.kind === 'install' && e.team !== 'un' && e.date >= TODAY);
   const [tab, setTab] = useState('overview');
   const [modal, setModal] = useState<string | null>(null);
   const [vis, setVis] = useState<Record<string, boolean>>({});
@@ -34,7 +35,7 @@ export default function JobDetail() {
   return (
     <>
       <PageHead title={`${j.id} · ${j.customer}`} crumbs={[{ label: 'Jobs', to: '/jobs' }, { label: j.id }]}
-        actions={<><button className="btn btn-grey" onClick={() => setModal('call')}><IconPhoneCall size={16} />Log a call</button><button className="btn btn-outline" onClick={() => setTab('messages')}><IconMessage size={16} />Message customer</button>{['Installation', 'Snag'].includes(j.stage) ? <button className="btn btn-primary" onClick={() => setModal('signoff')}><IconShieldCheck size={16} />Sign off job</button> : j.stage === 'Complete' ? <Tag tone="solid-ok">Completed</Tag> : <button className="btn btn-primary" onClick={() => setModal(booking ? 'change' : 'book')}><IconCalendarPlus size={16} />{booking ? 'Change installation' : 'Book installation'}</button>}</>} />
+        actions={<>{record && <Link to={`/enquiries/${record.id}`} className="btn btn-outline"><IconFileText size={16} />Full record</Link>}<button className="btn btn-grey" onClick={() => setModal('call')}><IconPhoneCall size={16} />Log a call</button><button className="btn btn-outline" onClick={() => setTab('messages')}><IconMessage size={16} />Message customer</button>{['Installation', 'Snag'].includes(j.stage) ? <button className="btn btn-primary" onClick={() => setModal('signoff')}><IconShieldCheck size={16} />Sign off job</button> : j.stage === 'Complete' ? <Tag tone="solid-ok">Completed</Tag> : <button className="btn btn-primary" onClick={() => setModal(booking ? 'change' : 'book')}><IconCalendarPlus size={16} />{booking ? 'Change installation' : 'Book installation'}</button>}</>} />
 
       <div className="photo-hero">
         <img src={IMG[j.photo]} alt="" style={{ objectPosition: 'center 40%' }} />

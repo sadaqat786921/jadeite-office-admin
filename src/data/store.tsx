@@ -1,8 +1,9 @@
 // Shared, in-memory state so every Office Admin flow updates the whole platform.
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
-const KEY = 'jadeite-office-admin-demo-v2';
+const KEY = 'jadeite-office-admin-demo-v3';
 import * as M from './mock';
+import { SEED, EXTRA_ENQUIRY, Lifecycle, Comm } from './lifecycle';
 
 export const TODAY = '2026-10-16';
 
@@ -17,7 +18,8 @@ export type Task = { id: string; title: string; owner: string; due: string; job?
 export type Appt = { id: string; kind: 'Sales visit' | 'Survey' | 'Follow-up call' | 'Snag visit'; customer: string; who: string; date: string; time: string; job?: string; address?: string; synced: boolean; status: string };
 export type DiaryEvent = { id: string; team: string; date: string; days: number; kind: 'install' | 'survey' | 'delivery' | 'leave' | 'snag'; title: string; sub: string; photo: keyof typeof M.IMG; job?: string };
 export type Email = { id: string; from: string; subject: string; preview: string; when: string; linked?: string };
-export type EnquiryX = M.Enquiry & { type: 'Sales' | 'Existing job' | 'Aftercare'; followUp?: string; stageDays: number; routedTo?: string };
+export type EnquiryX = M.Enquiry & Lifecycle & { type: 'Sales' | 'Existing job' | 'Aftercare'; followUp?: string; stageDays: number; routedTo?: string };
+export type Order = { ref: string; job: string; customer: string; supplier: string; ordered: string; confirmed: boolean; expected: string; frames: string; status: string; tone: string; checks: number; items?: string; confirmRef?: string; enquiry?: string };
 export type JobX = M.Job & { history: HistoryItem[]; signedOff?: { by: string; when: string; refused?: string }; installDate?: string; installDays?: number };
 
 const initialEvents: DiaryEvent[] = [
@@ -54,7 +56,7 @@ const initialEmails: Email[] = [
   { id: 'em2', from: 'accounts@emplas.co.uk', subject: 'Remittance advice', preview: 'Please find attached the remittance for orders SO-481…', when: 'Yesterday 16:40' },
 ];
 
-const enq0: EnquiryX[] = M.enquiries.map(e => ({ ...e, type: 'Sales', stageDays: Math.min(e.daysAgo, 9), followUp: e.assigned ? e.nextDue : undefined }));
+const enq0: EnquiryX[] = [...M.enquiries, EXTRA_ENQUIRY].map(e => ({ ...e, ...(SEED[e.id] || {}), type: 'Sales', stageDays: Math.min(e.daysAgo, 9), followUp: e.assigned ? e.nextDue : undefined }));
 enq0.unshift({ id: 'EN-2292', name: 'Mrs Cooper', initials: 'JC', phone: '07700 900 990', email: 'j.cooper@email.co.uk', address: '5 Elm Close, Ripon', postcode: 'HG4 2BB', product: 'Window draught', source: 'Email', received: '16 Oct, 08:12', daysAgo: 0, stage: 'New Enquiry', value: 0, next: 'Route to aftercare', nextDue: 'Today', photo: 'window', type: 'Aftercare', stageDays: 0 });
 
 const jobs0: JobX[] = M.jobs.map(j => ({
@@ -70,13 +72,14 @@ const jobs0: JobX[] = M.jobs.map(j => ({
   ],
 }));
 
-const snags0 = M.snags.map(s => ({ ...s }));
+const snags0 = M.snags.map(s => ({ ...s, kind: 'Snag' as 'Snag' | 'Aftercare' }));
+const orders0: Order[] = M.orders.map(o => ({ ...o }));
 const deliveries0 = M.deliveries.map(d => ({ ...d, problem: '' as string }));
 const surveys0 = M.surveys.map(s => ({ ...s }));
 
 type State = {
   enquiries: EnquiryX[]; jobs: JobX[]; tasks: Task[]; appts: Appt[]; events: DiaryEvent[]; emails: Email[];
-  snags: typeof snags0; deliveries: typeof deliveries0; surveys: typeof surveys0;
+  snags: typeof snags0; deliveries: typeof deliveries0; surveys: typeof surveys0; orders: Order[];
 };
 type Ctx = State & {
   set: <K extends keyof State>(k: K, fn: (v: State[K]) => State[K]) => void;
@@ -85,12 +88,14 @@ type Ctx = State & {
   clash: (team: string, date: string, days: number, ignoreId?: string) => DiaryEvent | undefined;
   attention: { late: JobX[]; blocked: JobX[]; notBooked: JobX[]; noNext: JobX[] };
   reset: () => void;
+  updEnq: (id: string, patch: Partial<EnquiryX> | ((e: EnquiryX) => Partial<EnquiryX>), comm?: Omit<Comm, 'id' | 'when'> & { when?: string }) => void;
+  now: () => string;
 };
 const StoreCtx = createContext<Ctx>(null as any);
 export const useStore = () => useContext(StoreCtx);
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
-  const fresh: State = { enquiries: enq0, jobs: jobs0, tasks: initialTasks, appts: initialAppts, events: initialEvents, emails: initialEmails, snags: snags0, deliveries: deliveries0, surveys: surveys0 };
+  const fresh: State = { enquiries: enq0, jobs: jobs0, tasks: initialTasks, appts: initialAppts, events: initialEvents, emails: initialEmails, snags: snags0, deliveries: deliveries0, surveys: surveys0, orders: orders0 };
   const [s, setS] = useState<State>(() => {
     try { const raw = sessionStorage.getItem(KEY); if (raw) return { ...fresh, ...JSON.parse(raw) }; } catch {}
     return fresh;
@@ -98,15 +103,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { try { sessionStorage.setItem(KEY, JSON.stringify(s)); } catch {} }, [s]);
   const reset = () => { try { sessionStorage.removeItem(KEY); } catch {} setS(fresh); };
   const set: Ctx['set'] = (k, fn) => setS(prev => ({ ...prev, [k]: fn(prev[k]) }));
-  const now = () => new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).replace(',', '');
+  const now = () => `${fmtDate(TODAY, { day: '2-digit', month: 'short' })}, ${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
   const log: Ctx['log'] = (jobId, what, who = 'Sarah Mitchell') => set('jobs', js => js.map(j => (j.id === jobId ? { ...j, history: [{ when: now(), who, what }, ...j.history] } : j)));
   const updateJob: Ctx['updateJob'] = (id, patch, what) => set('jobs', js => js.map(j => (j.id === id ? { ...j, ...patch, history: what ? [{ when: now(), who: 'Sarah Mitchell', what }, ...j.history] : j.history } : j)));
   const clash: Ctx['clash'] = (team, date, days, ignoreId) => s.events.find(e => e.team === team && e.id !== ignoreId && rangesOverlap(date, days, e.date, e.days));
   const attention = useMemo(() => ({
     late: s.jobs.filter(j => j.overdue),
     blocked: s.jobs.filter(j => j.blocked),
-    notBooked: s.jobs.filter(j => ['Delivery'].includes(j.stage) && !s.events.some(e => e.job === j.id && e.kind === 'install' && e.date >= TODAY)),
+    notBooked: s.jobs.filter(j => ['Delivery'].includes(j.stage) && !s.events.some(e => e.job === j.id && e.kind === 'install' && e.team !== 'un' && e.date >= TODAY)),
     noNext: s.jobs.filter(j => !j.next || j.next === '—'),
   }), [s.jobs, s.events]);
-  return <StoreCtx.Provider value={{ ...s, set, log, updateJob, clash, attention, reset }}>{children}</StoreCtx.Provider>;
+  const updEnq: Ctx['updEnq'] = (id, patch, comm) => set('enquiries', es => es.map(e => {
+    if (e.id !== id) return e;
+    const p = typeof patch === 'function' ? patch(e) : patch;
+    const comms = comm ? [{ id: 'c' + Date.now() + Math.random().toString(36).slice(2, 5), when: comm.when || now(), ...comm }, ...(e.comms || [])] : e.comms;
+    return { ...e, ...p, comms };
+  }));
+  return <StoreCtx.Provider value={{ ...s, set, log, updateJob, clash, attention, reset, updEnq, now }}>{children}</StoreCtx.Provider>;
 }

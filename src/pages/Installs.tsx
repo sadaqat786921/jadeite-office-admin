@@ -12,7 +12,7 @@ function readiness(j: JobX, events: DiaryEvent[]) {
     ['Order delivered', j.stage === 'Delivery' && !j.blocked],
     ['Deposit paid', j.deposit > 0 && j.paid >= j.deposit],
   ];
-  const booked = events.some(e => e.job === j.id && e.kind === 'install' && e.date >= TODAY);
+  const booked = events.some(e => e.job === j.id && e.kind === 'install' && e.team !== 'un' && e.date >= TODAY);
   return { checks, ready: checks.every(c => c[1]), booked };
 }
 
@@ -27,7 +27,7 @@ export function Installations() {
   const { events, jobs } = useStore();
   const [modal, setModal] = useState<string | null>(null);
   const { ready, notReady } = useBookingLists();
-  const upcoming = events.filter(e => e.kind === 'install' && e.date >= addDays(TODAY, -6)).sort((a, b) => a.date.localeCompare(b.date));
+  const upcoming = events.filter(e => e.kind === 'install' && e.team !== 'un' && e.date >= addDays(TODAY, -6)).sort((a, b) => a.date.localeCompare(b.date));
   return (
     <>
       <PageHead title="Installations" crumbs={[{ label: 'Dashboard', to: '/' }, { label: 'Installations' }]} actions={<><Link to="/diary" className="btn btn-grey"><IconCalendar size={16} />Open diary</Link><button className="btn btn-primary" onClick={() => setModal('any')}><IconCalendarPlus size={16} />Book installation</button></>} />
@@ -141,9 +141,10 @@ export function Diary() {
           <div className="diary">
             <div className="hd" style={{ borderLeft: 0 }}>Team</div>
             {days.map(d => <div key={d} className={`hd ${d === TODAY ? 'today' : ''}`}>{fmtDate(d, { weekday: 'short', day: 'numeric' })}{d === TODAY && ' · Today'}</div>)}
-            {teams.map(t => (
+            {[{ id: 'un', name: 'Needs installer', initials: '?', members: 'Not assigned yet', color: '#d64545' }, ...teams].filter(t => t.id !== 'un' || events.some(e => e.team === 'un')).map(t => (
               <React.Fragment key={t.id}>
-                <div className="team"><span className="tile" style={{ width: 34, height: 34, borderRadius: 8, background: 'var(--deep)', color: '#fff', fontSize: 11, fontWeight: 700 }}>{t.initials}</span><div className="vstack" style={{ gap: 2 }}><b style={{ fontSize: 13 }}>{t.name}</b><span className="tiny muted">{t.members}</span></div></div>
+                {t.id === 'un' ? <div className="team" style={{ background: '#fdf3f3' }}><span className="tile" style={{ width: 34, height: 34, borderRadius: 8, background: '#fff', color: 'var(--err)', border: '1.5px dashed #e7a3a3', fontSize: 13, fontWeight: 700 }}>?</span><div className="vstack" style={{ gap: 2 }}><b style={{ fontSize: 13, color: 'var(--err)' }}>Needs installer</b><span className="tiny muted">{events.filter(e => e.team === 'un').length} waiting · </span>{(() => { const nx = events.filter(e => e.team === 'un').sort((a, b) => a.date.localeCompare(b.date))[0]; return nx && (nx.date < week || nx.date > end) ? <button className="link tiny" style={{ padding: 0 }} onClick={() => setWeek(mondayOf(nx.date))}>show {fmtDate(nx.date, { day: 'numeric', month: 'short' })}</button> : <span className="tiny muted">click one to assign</span>; })()}</div></div> :
+                <div className="team"><span className="tile" style={{ width: 34, height: 34, borderRadius: 8, background: 'var(--deep)', color: '#fff', fontSize: 11, fontWeight: 700 }}>{t.initials}</span><div className="vstack" style={{ gap: 2 }}><b style={{ fontSize: 13 }}>{t.name}</b><span className="tiny muted">{t.members}</span></div></div>}
                 <div className="lane"
                   onDragOver={e => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); const i = Math.min(5, Math.max(0, Math.floor(((e.clientX - r.left) / r.width) * 6))); setOver(t.id + days[i]); }}
                   onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOver(null); }}
@@ -153,8 +154,8 @@ export function Diary() {
                   {events.filter(e => e.team === t.id && e.date <= end && addDays(e.date, e.days - 1) >= week).map(e => {
                     const s = Math.max(0, dayDiff(week, e.date)); const len = Math.min(6, dayDiff(week, e.date) + e.days) - s;
                     return (
-                      <div key={e.id} className={`event ${e.kind}`} title={e.kind === 'leave' ? e.title : 'Click to change or cancel'} style={{ left: `calc(${(s / 6) * 100}% + 6px)`, width: `calc(${(len / 6) * 100}% - 12px)` }}
-                        onClick={() => (e.kind === 'leave' || e.kind === 'delivery' ? toast(e.kind === 'leave' ? `${e.title} — nothing can be booked for ${t.name} on these days` : 'Workshop day') : setModal({ event: e }))}>
+                      <div key={e.id} className={`event ${e.kind}`} title={e.team === 'un' ? 'Click to assign an installer team' : e.kind === 'leave' ? e.title : 'Click to change or cancel'} style={{ left: `calc(${(s / 6) * 100}% + 6px)`, width: `calc(${(len / 6) * 100}% - 12px)`, ...(e.team === 'un' ? { background: '#fff', border: '1.5px dashed #e7a3a3', borderLeft: '4px solid #d64545' } : {}) }}
+                        onClick={() => (e.team === 'un' ? setModal({ jobId: e.job, presetDate: e.date }) : e.kind === 'leave' || e.kind === 'delivery' ? toast(e.kind === 'leave' ? `${e.title} — nothing can be booked for ${t.name} on these days` : 'Workshop day') : setModal({ event: e }))}>
                         {e.kind !== 'leave' && <img src={IMG[e.photo]} alt="" />}
                         {e.kind === 'leave' && <IconBeach size={18} />}
                         <div className="vstack" style={{ gap: 2, minWidth: 0 }}><b style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.title}</b><span className="tiny muted" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.sub}</span></div>
