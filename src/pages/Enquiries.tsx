@@ -17,12 +17,20 @@ function RouteModal({ id, onClose }: { id: string; onClose: () => void }) {
   const { enquiries, jobs, set, log } = useStore();
   const e = enquiries.find(x => x.id === id)!;
   const [to, setTo] = useState<'Existing job' | 'Aftercare'>(e.type === 'Sales' ? 'Aftercare' : (e.type as any));
-  const [job, setJob] = useState(jobs.find(j => j.address.includes(e.address.split(',')[0]))?.id || jobs[0].id);
+  // The customer's own jobs (matched by name, postcode or address) come first; everything else is a fallback.
+  const theirs = jobs.filter(j => j.customer === e.name || j.postcode === e.postcode || j.address === e.address);
+  const others = jobs.filter(j => !theirs.includes(j));
+  const [job, setJob] = useState((theirs[0] || jobs[0]).id);
   return (
     <Modal title="Send to the right person" sub={`${e.name} · this is not a new sale`} onClose={onClose} width={560}
       footer={<><button className="btn btn-grey" onClick={onClose}>Cancel</button><button className="btn btn-primary" onClick={() => { set('enquiries', es => es.map(x => (x.id === id ? { ...x, type: to, routedTo: job, next: `Sent to ${to === 'Aftercare' ? 'aftercare' : 'job owner'}`, nextDue: 'Done' } : x))); log(job, `${to === 'Aftercare' ? 'Aftercare request' : 'Customer question'} from ${e.name} added to this job`); toast(`Sent to ${to === 'Aftercare' ? 'aftercare' : 'the job owner'} · saved on ${job}`); onClose(); }}>Send</button></>}>
       <Field label="What is it about?"><div className="hstack" style={{ gap: 8 }}>{(['Existing job', 'Aftercare'] as const).map(k => <button key={k} className={`chip ${to === k ? 'on' : ''}`} onClick={() => setTo(k)}>{k === 'Existing job' ? 'A current job' : 'Aftercare problem'}</button>)}</div></Field>
-      <Field label="Which job?"><select className="select" value={job} onChange={x => setJob(x.target.value)}>{jobs.map(j => <option key={j.id} value={j.id}>{j.id} · {j.customer} · {j.address}</option>)}</select></Field>
+      <Field label={`Which of ${e.name}’s jobs is this about?`} hint={theirs.length ? `We found ${theirs.length === 1 ? '1 job' : `${theirs.length} jobs`} for ${e.name} at ${e.address}.` : `No jobs found for ${e.name} — pick the right one from all jobs.`}>
+        <select className="select" value={job} onChange={x => setJob(x.target.value)}>
+          {theirs.length > 0 && <optgroup label={`${e.name}’s jobs`}>{theirs.map(j => <option key={j.id} value={j.id}>{j.id} · {j.products} · {j.stage === 'Complete' ? 'Fitted, in guarantee' : j.stage}</option>)}</optgroup>}
+          <optgroup label={theirs.length ? 'Other customers’ jobs' : 'All jobs'}>{others.map(j => <option key={j.id} value={j.id}>{j.id} · {j.customer} · {j.address}</option>)}</optgroup>
+        </select>
+      </Field>
       <div className="alert info small"><IconArrowsSplit size={16} />The message stays on the customer’s record. It does not go to Sales.</div>
     </Modal>
   );

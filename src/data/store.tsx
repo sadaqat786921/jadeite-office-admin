@@ -1,7 +1,7 @@
 // Shared, in-memory state so every Office Admin flow updates the whole platform.
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
-const KEY = 'jadeite-office-admin-demo-v1';
+const KEY = 'jadeite-office-admin-demo-v2';
 import * as M from './mock';
 
 export const TODAY = '2026-10-16';

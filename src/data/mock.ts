@@ -90,6 +90,9 @@ export const jobs: Job[] = [
   { id: 'JG-10495', customer: 'M. Duffy', initials: 'MD', address: '60 Kirk Lane, Otley', postcode: 'LS21 3EP', products: 'Bi-fold doors', phone: '07700 900 777', email: 'm.duffy@email.co.uk', value: 8450, deposit: 2100, paid: 2100, stage: 'Delivery', sales: 'ec', surveyor: 'ps', next: 'Book installation — ready', owner: 'Sarah M', due: 'Today', photo: 'bifold', checklist: 80, portal: 'Invited',
     productList: [{ name: '3-pane bi-fold door', qty: 1, detail: 'Grey · Emplas', photo: 'bifold', ready: 100 }],
     dates: [{ label: 'Delivery', date: '13 Oct', done: true }, { label: 'Installation', date: 'Not booked' }] },
+  { id: 'JG-10398', customer: 'Mrs Cooper', initials: 'JC', address: '5 Elm Close, Ripon', postcode: 'HG4 2BB', phone: '07700 900 990', email: 'j.cooper@email.co.uk', products: '4 windows', value: 5200, deposit: 1300, paid: 5200, stage: 'Complete', sales: 'ec', surveyor: 'rk', team: 't2', next: 'In guarantee until Jun 2036', owner: 'Sarah M', due: 'Done', photo: 'window', checklist: 100, portal: 'Active',
+    productList: [{ name: '4 × uPVC casement windows', qty: 4, detail: 'White · Emplas', photo: 'window', ready: 100 }],
+    dates: [{ label: 'Installation', date: '09–10 Jun', done: true }, { label: 'Signed off', date: '10 Jun', done: true }] },
 ];
 
 export const enquirySources = [
