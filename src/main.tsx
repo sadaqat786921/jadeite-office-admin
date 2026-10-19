@@ -8,6 +8,7 @@ import '@fontsource/sora/400.css';
 import '@fontsource/sora/500.css';
 import '@fontsource/sora/600.css';
 import '@fontsource/sora/700.css';
+import './index.css';
 import './styles/app.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
