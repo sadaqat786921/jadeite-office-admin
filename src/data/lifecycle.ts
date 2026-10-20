@@ -1,5 +1,7 @@
 // Everything that happens to one enquiry, from first contact to aftercare.
 // One record grows a new tab at every stage (see pages/EnquiryRecord.tsx).
+import { FPSurvey, FinalSurvey, FPItem, makeFpSurvey, fpTotals } from './framepoint';
+export type { FPSurvey, FinalSurvey, FPItem } from './framepoint';
 
 export type Comm = {
   id: string;
@@ -20,12 +22,15 @@ export type Opening = { ref: string; room: string; type: string; w: number; h: n
 export type Survey = {
   surveyor: string; date: string; time: string; status: 'Booked' | 'Completed'; requestedBy: string;
   openings?: Opening[]; access?: string; parking?: string; notes?: string; photos?: number; signed?: boolean; completedOn?: string;
+  fp?: FPSurvey; // the Framepoint survey done by the salesperson (imported or read from the PDF)
 };
 
-export type QuoteLine = { item: string; spec: string; qty: number; unit: number };
+export type QuoteLine = { item: string; spec: string; qty: number; unit: number; size?: string; work?: string; service?: boolean };
 export type Quote = {
   ref: string; lines: QuoteLine[]; discount: number; sentOn: string; validUntil: string; sentBy: string;
   status: 'Sent' | 'Accepted' | 'Declined'; reply?: string;
+  fp?: boolean; // Framepoint quote: prices include VAT, 50/40/10 payments
+  files?: string[];
 };
 
 export type Invite = { status: 'Not invited' | 'Invited' | 'Active'; sentOn?: string };
@@ -33,6 +38,7 @@ export type Invite = { status: 'Not invited' | 'Invited' | 'Active'; sentOn?: st
 export type Lifecycle = {
   comms?: Comm[]; appt?: Appointment; survey?: Survey; quote?: Quote; lostReason?: string;
   invite?: Invite; jobId?: string; wonOn?: string;
+  finalSurvey?: FinalSurvey; // after Won: the surveyor checks every measurement before ordering
 };
 
 // Framepoint price list used to turn survey openings into quote lines.
@@ -47,12 +53,20 @@ export const PRICE: Record<string, { unit: number; spec: string }> = {
 };
 export const OPENING_TYPES = Object.keys(PRICE);
 
-export const quoteTotals = (q: Pick<Quote, 'lines' | 'discount'>) => {
+export const quoteTotals = (q: Pick<Quote, 'lines' | 'discount'> & { fp?: boolean }) => {
+  if (q.fp) {
+    const total = q.lines.reduce((a, l) => a + l.qty * l.unit, 0) - (q.discount || 0);
+    const vat = Math.round(total / 6);
+    const deposit = Math.round(total * 0.5), stage = Math.round(total * 0.4);
+    return { sub: total - vat, vat, total, deposit, depositPct: 50, stage, completion: total - deposit - stage };
+  }
   const sub = q.lines.reduce((a, l) => a + l.qty * l.unit, 0) - (q.discount || 0);
   const vat = Math.round(sub * 0.2);
   const total = sub + vat;
-  return { sub, vat, total, deposit: Math.round(total * 0.25) };
+  return { sub, vat, total, deposit: Math.round(total * 0.25), depositPct: 25, stage: 0, completion: total - Math.round(total * 0.25) };
 };
+
+export const linesFromFp = (items: FPItem[]): QuoteLine[] => items.map(i => ({ item: `${i.no}. ${i.name}`, spec: i.product, qty: i.qty, unit: i.each, size: i.size, work: i.work, service: i.service }));
 
 export const linesFromOpenings = (ops: Opening[]): QuoteLine[] => {
   const grouped: Record<string, number> = {};
@@ -112,13 +126,13 @@ export const SEED: Record<string, Lifecycle> = {
   },
   'EN-2287': {
     comms: [
-      c('w4', 'email-out', 'Your survey is booked', '12 Oct, 15:10', 'Sarah Mitchell', 'Dear Dr Whitfield, Priya Shah will measure your front door on Monday 19 October at 09:00.'),
+      c('w4', 'note', 'Framepoint survey imported', '12 Oct, 15:10', 'James Brook', 'Measured at the visit in Framepoint. 1 door · ready to send the quote.'),
       c('w3', 'call', 'Visit with Dr Whitfield', '12 Oct, 11:00', 'James Brook', 'Chose a red composite door. Wants a survey before the quote.'),
       c('w2', 'email-out', 'Thank you for your enquiry', '10 Oct, 15:00', 'James Brook'),
       c('w1', 'system', 'Enquiry received from the website', '10 Oct, 14:05', 'Website'),
     ],
     appt: { date: '2026-10-12', time: '11:00 – 12:00', who: 'jb', type: 'Home visit', address: '3 High Street, Harrogate', status: 'Done', outcome: 'Red composite door chosen. Survey needed.' },
-    survey: { surveyor: 'ps', date: '2026-10-19', time: '09:00 – 10:00', status: 'Booked', requestedBy: 'James Brook' },
+    survey: { surveyor: 'jb', date: '2026-10-12', time: '11:00 – 12:00', status: 'Completed', requestedBy: 'James Brook', openings: [{ ref: 'D1', room: 'Front entrance', type: 'Composite front door', w: 940, h: 2080, qty: 1, notes: 'Red, chrome furniture' }], completedOn: '12 Oct' },
   },
   'EN-2286': {
     comms: [
@@ -166,12 +180,14 @@ export const SEED: Record<string, Lifecycle> = {
     survey: { surveyor: 'ps', date: '2026-09-29', time: '10:00 – 11:30', status: 'Completed', requestedBy: 'Mike Harris', openings: SMITH_OPS, access: 'Front and side, easy', parking: 'Driveway', notes: 'Dog in the garden — keep the side gate shut.', photos: 12, signed: true, completedOn: '29 Sep' },
     quote: quoteFrom('FP-55109', SMITH_OPS, '29 Sep', '29 Oct', 'Mike Harris', 'Accepted', 560, 'We are happy to go ahead.'),
     invite: { status: 'Active', sentOn: '30 Sep' }, jobId: 'JG-10482', wonOn: '30 Sep',
+    finalSurvey: { surveyor: 'ps', date: '2026-10-02', time: '10:00 – 11:30', status: 'Done', doneOn: '02 Oct', signed: true, notes: 'All sizes confirmed.' },
   },
   'EN-2282': {
     comms: [c('k3', 'email-in', 'Quote accepted', '04 Oct, 09:00', 'The Bakers'), c('k2', 'email-out', 'Your quote FP-55104', '01 Oct, 11:00', 'Emma Clarke'), c('k1', 'system', 'Enquiry taken in the showroom', '25 Sep, 13:20', 'Showroom')],
     survey: { surveyor: 'rk', date: '2026-09-29', time: '09:00 – 10:30', status: 'Completed', requestedBy: 'Emma Clarke', openings: [{ ref: 'W1', room: 'Whole house', type: 'Casement window', w: 1100, h: 1100, qty: 8 }], photos: 14, signed: true, completedOn: '29 Sep' },
     quote: quoteFrom('FP-55104', [{ ref: 'W1', room: 'Whole house', type: 'Casement window', w: 1100, h: 1100, qty: 8 }], '01 Oct', '31 Oct', 'Emma Clarke', 'Accepted'),
     invite: { status: 'Active', sentOn: '04 Oct' }, jobId: 'JG-10477', wonOn: '04 Oct',
+    finalSurvey: { surveyor: 'rk', date: '2026-10-06', time: '09:00 – 10:00', status: 'Done', doneOn: '06 Oct', signed: true, notes: 'All sizes confirmed.' },
   },
   'EN-2279': {
     comms: [
@@ -197,5 +213,17 @@ export const SEED: Record<string, Lifecycle> = {
 export const EXTRA_ENQUIRY = {
   id: 'EN-2279', name: 'Mrs Hughes', initials: 'AH', phone: '07700 900 611', email: 'a.hughes@email.co.uk', address: '9 Abbey Road, Knaresborough', postcode: 'HG5 8HY',
   product: 'Sash windows', source: 'Website', received: '07 Oct, 11:20', daysAgo: 9, assigned: 'mh', stage: 'Won' as const, value: 6400,
-  next: 'Review and invite customer', nextDue: 'Today', photo: 'window' as const,
+  next: 'Book final survey', nextDue: 'Today', photo: 'window' as const,
 };
+
+// Everything surveyed is now done by the salesperson in Framepoint: turn the sample
+// measurements into Framepoint surveys and Framepoint quotes (prices inc. VAT).
+for (const [id, l] of Object.entries(SEED)) {
+  const sv = l.survey;
+  if (sv && sv.status === 'Completed' && sv.openings && !sv.fp) {
+    sv.fp = makeFpSurvey(sv.openings, sv.requestedBy, sv.completedOn || '', 'Framepoint', l.quote ? `2${l.quote.ref.slice(-2)}-1-v2` : undefined, sv.notes);
+    if (l.quote) l.quote = { ...l.quote, ref: sv.fp.ref, fp: true, discount: 0, lines: linesFromFp(sv.fp.items), files: [sv.fp.quoteFile, sv.fp.file] };
+    if (l.finalSurvey && l.finalSurvey.status === 'Done') l.finalSurvey.checks = sv.fp.items.filter(i => !i.service).map(i => ({ no: i.no, name: i.name, sales: i.size || '', checked: i.size || '', ok: true }));
+  }
+}
+export const seedValue = (id: string) => { const q = SEED[id]?.quote; return q ? fpTotals(q.lines.map(x => ({ no: 0, name: '', qty: x.qty, work: '', product: '', spec: [], each: x.unit }))).total : undefined; };

@@ -1,9 +1,9 @@
 // Shared, in-memory state so every Office Admin flow updates the whole platform.
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
-const KEY = 'jadeite-office-admin-demo-v3';
+const KEY = 'jadeite-office-admin-demo-v4';
 import * as M from './mock';
-import { SEED, EXTRA_ENQUIRY, Lifecycle, Comm } from './lifecycle';
+import { SEED, EXTRA_ENQUIRY, Lifecycle, Comm, seedValue } from './lifecycle';
 
 export const TODAY = '2026-10-16';
 
@@ -56,7 +56,7 @@ const initialEmails: Email[] = [
   { id: 'em2', from: 'accounts@emplas.co.uk', subject: 'Remittance advice', preview: 'Please find attached the remittance for orders SO-481…', when: 'Yesterday 16:40' },
 ];
 
-const enq0: EnquiryX[] = [...M.enquiries, EXTRA_ENQUIRY].map(e => ({ ...e, ...(SEED[e.id] || {}), type: 'Sales', stageDays: Math.min(e.daysAgo, 9), followUp: e.assigned ? e.nextDue : undefined }));
+const enq0: EnquiryX[] = [...M.enquiries, EXTRA_ENQUIRY].map(e => ({ ...e, ...(SEED[e.id] || {}), value: seedValue(e.id) ?? e.value, type: 'Sales', stageDays: Math.min(e.daysAgo, 9), followUp: e.assigned ? e.nextDue : undefined }));
 enq0.unshift({ id: 'EN-2292', name: 'Mrs Cooper', initials: 'JC', phone: '07700 900 990', email: 'j.cooper@email.co.uk', address: '5 Elm Close, Ripon', postcode: 'HG4 2BB', product: 'Window draught', source: 'Email', received: '16 Oct, 08:12', daysAgo: 0, stage: 'New Enquiry', value: 0, next: 'Route to aftercare', nextDue: 'Today', photo: 'window', type: 'Aftercare', stageDays: 0 });
 
 const jobs0: JobX[] = M.jobs.map(j => ({
