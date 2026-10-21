@@ -73,30 +73,57 @@ export function ContactModal({ e, onClose, onDone, logOnly }: P & { logOnly?: 'e
 /* ---------- 2. Book appointment → Appointment ---------- */
 export function BookApptModal({ e, onClose, onDone }: P) {
   const toast = useToast();
-  const { updEnq, set } = useStore();
+  const { updEnq, set, appts } = useStore();
+  const owner = staffById(e.assigned);
   const [type, setType] = useState<'Home visit' | 'Showroom visit' | 'Video call'>('Home visit');
   const [who, setWho] = useState(e.assigned || 'mh');
+  const [change, setChange] = useState(false);
+  const [why, setWhy] = useState('');
   const [date, setDate] = useState(addDays(TODAY, 4));
   const [time, setTime] = useState('10:00 – 11:00');
   const [notes, setNotes] = useState('');
+  const s = staffById(who)!;
+  const moved = !!e.assigned && who !== e.assigned;
+  const busy = appts.filter(a => a.who === who && a.date === date && a.status !== 'Done');
+  const clash = busy.find(a => a.time.split(' ')[0] === time.split(' ')[0]);
   const save = () => {
-    const s = staffById(who)!;
-    updEnq(e.id, { stage: 'Appointment', stageDays: 0, appt: { date, time, who, type, address: type === 'Showroom visit' ? 'Jadeite showroom, Harrogate' : e.address, notes, status: 'Booked' }, next: type, nextDue: fmtDate(date) },
-      { kind: 'email-out', title: 'Your appointment is booked', body: `Dear ${e.name}, ${s.name} will see you on ${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })} at ${time.split(' ')[0]} (${type.toLowerCase()}).`, who: ME });
+    // The salesperson who visits is the salesperson who owns the customer. Changing it moves the deal.
+    updEnq(e.id, { stage: 'Appointment', stageDays: 0, assigned: who, appt: { date, time, who, type, address: type === 'Showroom visit' ? 'Jadeite showroom, Harrogate' : e.address, notes, status: 'Booked' }, next: 'Sales appointment', nextDue: fmtDate(date) },
+      { kind: 'email-out', title: 'Your appointment is booked', body: `Dear ${e.name}, ${s.name} will see you on ${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })} at ${time.split(' ')[0]} (${type.toLowerCase()}).`, who: owner?.name || ME });
+    if (moved) updEnq(e.id, {}, { kind: 'system', title: `Moved from ${owner?.name} to ${s.name}`, body: `${s.name} now looks after ${e.name}. Reason: ${why}`, who: ME });
     set('appts', as => [...as, { id: 'ap' + Date.now(), kind: 'Sales visit', customer: e.name, who, date, time, address: e.address, synced: true, status: 'Booked' }]);
-    toast(`Appointment booked · ${fmtDate(date)} · moved to Appointment`);
+    toast(moved ? `Booked with ${s.name} · ${e.name} is now ${s.name.split(' ')[0]}’s customer` : `Appointment booked with ${s.name} · ${fmtDate(date)} · in ${s.name.split(' ')[0]}’s Outlook`);
     onDone?.('appt'); onClose();
   };
   return (
-    <Modal title="Book appointment" sub={`${e.name} · ${e.address}`} onClose={onClose} width={640} footer={<Foot onClose={onClose} onSave={save} label="Book and email the customer" icon={<IconCalendarEvent size={16} />} />}>
+    <Modal title="Book appointment" sub={`${e.name} · ${e.address}`} onClose={onClose} width={640}
+      footer={<Foot onClose={onClose} onSave={save} disabled={!!clash || (moved && why.trim().length < 3)} label="Book and email the customer" icon={<IconCalendarEvent size={16} />} />}>
       <Field label="What kind of appointment?"><div className="hstack" style={{ gap: 8 }}>{(['Home visit', 'Showroom visit', 'Video call'] as const).map(k => <button key={k} type="button" className={`chip ${type === k ? 'on' : ''}`} onClick={() => setType(k)}>{k}</button>)}</div></Field>
-      <Field label="Who is going?"><PickPerson people={salespeople} value={who} onChange={setWho} load={{ mh: 'Free on this day', ec: '2 visits that day', jb: 'Free after 2pm' }} /></Field>
+      <Field label="Salesperson">
+        {!change ? (
+          <div className="hstack" style={{ gap: 12, padding: 12, border: '1px solid var(--primary)', background: 'var(--tint-2)', borderRadius: 12 }}>
+            <Avatar i={s.initials} size={38} />
+            <div className="vstack" style={{ gap: 2, flex: 1 }}><b style={{ fontSize: 13 }}>{s.name}</b><span className="tiny muted">{e.name}’s salesperson · they go to the appointment</span></div>
+            {e.assigned && <button type="button" className="link small" onClick={() => setChange(true)}>Someone else needs to go?</button>}
+          </div>
+        ) : (
+          <PickPerson people={salespeople} value={who} onChange={setWho} load={Object.fromEntries(salespeople.map(p => [p.id, p.id === e.assigned ? 'Current salesperson' : 'Will take over this customer']))} />
+        )}
+      </Field>
+      {moved && (
+        <>
+          <div className="alert warn small"><IconAlertTriangle size={16} /><div>One customer has one salesperson. Booking with {s.name} moves {e.name} to {s.name.split(' ')[0]} — the pipeline, quote and follow-ups go with them.</div></div>
+          <Field label={`Why can't ${owner?.name.split(' ')[0]} go? (required)`}><input className="input" value={why} onChange={x => setWhy(x.target.value)} placeholder={`e.g. ${owner?.name.split(' ')[0]} is on holiday that week`} /></Field>
+        </>
+      )}
       <div className="grid-2">
         <Field label="Date"><input type="date" className="input" value={date} onChange={x => setDate(x.target.value)} /></Field>
-        <Field label="Time"><select className="select" value={time} onChange={x => setTime(x.target.value)}>{['09:00 – 10:00', '10:00 – 11:00', '11:30 – 12:30', '14:00 – 15:00', '16:00 – 17:00'].map(t => <option key={t}>{t}</option>)}</select></Field>
+        <Field label="Time"><select className="select" value={time} onChange={x => setTime(x.target.value)}>{['09:00 – 10:00', '10:00 – 11:00', '11:30 – 12:30', '13:30 – 14:30', '16:00 – 17:00'].map(t => <option key={t}>{t}</option>)}</select></Field>
       </div>
-      <Field label="Notes for the salesperson (optional)"><input className="input" value={notes} onChange={x => setNotes(x.target.value)} placeholder="e.g. Park on the drive. Ring the side door." /></Field>
-      <Check on label="Email the customer a confirmation and add it to the Outlook calendar" />
+      {clash ? <div className="alert err small"><IconAlertTriangle size={16} /><div><b>{s.name.split(' ')[0]} is already busy then</b> — {clash.kind.toLowerCase()} with {clash.customer}. Pick another time.</div></div>
+        : <div className="alert ok small"><IconCircleCheck size={16} /><div><b>{s.name.split(' ')[0]} is free</b> at {time.split(' ')[0]} on {fmtDate(date)}{busy.length ? ` (${busy.length} other visit${busy.length > 1 ? 's' : ''} that day)` : ''}. Checked against their Outlook calendar.</div></div>}
+      <Field label={`Notes for ${s.name.split(' ')[0]} (optional)`}><input className="input" value={notes} onChange={x => setNotes(x.target.value)} placeholder="e.g. Park on the drive. Ring the side door." /></Field>
+      <Check on label={`Email the customer a confirmation and add it to ${s.name.split(' ')[0]}’s Outlook calendar`} />
     </Modal>
   );
 }
