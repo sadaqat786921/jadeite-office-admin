@@ -360,3 +360,22 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .bar { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; position: relative; }
 .bar-run { position: absolute; inset: 0 auto 0 0; width: 40%; background: var(--primary); border-radius: 3px; animation: barrun 1.2s ease-in-out infinite; }
 @keyframes barrun { from { left: -40%; } to { left: 100%; } }
+
+/* Journey boards: whose turn it is */
+.kcard { position: relative; }
+.kcard-mine { border-color: #f0cf73; box-shadow: inset 3px 0 0 #e0a100; }
+.kcard-late { border-color: #f1b8b8; box-shadow: inset 3px 0 0 #d64545; }
+.kcard-flag { position: absolute; top: -9px; right: 10px; display: inline-flex; align-items: center; gap: 4px; background: #e0a100; color: #fff; font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
+.kcol-head { display: flex; flex-direction: column; gap: 4px; padding: 2px 4px; }
+.kcol-head .bar { height: 3px; border-radius: 2px; }
+/* Complete journey list on the record */
+.journey-list { display: grid; grid-template-columns: 1fr 1fr; grid-auto-flow: column; gap: 2px 24px; }
+.jl { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px dashed var(--border); font-size: 12.5px; color: var(--muted); }
+.jl.done { color: var(--text); }
+.jl.now { color: var(--text); font-weight: 600; }
+.jl.now .jl-dot { border-color: #e0a100; background: #fdf7e6; }
+.jl-dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--border); flex: 0 0 auto; }
+.jl-label { flex: 1; }
+@media (max-width: 900px) { .journey-list { grid-template-columns: 1fr; grid-auto-flow: row; grid-template-rows: none !important; } }
+.kanban.journey-board .kcol { width: 250px; flex-basis: 250px; }
+.kcard .btn { min-width: 0; white-space: normal; height: auto; min-height: 30px; padding-top: 5px; padding-bottom: 5px; text-align: center; line-height: 1.25; }

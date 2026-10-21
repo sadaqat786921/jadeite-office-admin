@@ -8,47 +8,12 @@ import {
   IconArrowsSplit, IconInfoCircle, IconMailForward, IconNotes, IconSettings, IconAlertTriangle, IconClock, IconArrowRight, IconShieldCheck, IconUser, IconRulerMeasure, IconPlugConnected,
 } from '@tabler/icons-react';
 import { PageHead, Card, CardHead, Tag, Avatar, Tabs, Tile, useToast, Empty } from '../components/ui';
-import { AssignModal, BookInstallModal } from '../components/Forms';
-import {
-  ContactModal, BookApptModal, RequestSurveyModal, SurveyResultsModal, SendQuoteModal, ReplyModal, WonModal, LostModal, InviteModal, OrderModal,
-  VendorConfirmModal, DeliveredModal, AddSnagModal, SurveyReport, QuoteDoc, FramepointSurveyModal, BookFinalSurveyModal, FinalSurveyModal, FinalSurveyView, orderLines, FileChip,
-} from '../components/Lifecycle';
+import { SurveyReport, QuoteDoc, FinalSurveyView, orderLines, FileChip } from '../components/Lifecycle';
+import { stepFor, ActionModal, PHASES, journeyList, roleTone, installOf, needsOffice } from '../components/Journey';
 import { staffById, teamById, IMG, gbp } from '../data/mock';
-import { useStore, fmtDate, addDays, EnquiryX, Order, DiaryEvent } from '../data/store';
+import { useStore, fmtDate, addDays } from '../data/store';
 import { quoteTotals } from '../data/lifecycle';
-import { RouteModal, stageTone } from './Enquiries';
-
-type Step = { key: string; label: string; icon: React.ReactNode; hint: string };
-
-export function nextStep(e: EnquiryX, order?: Order, install?: DiaryEvent): Step {
-  const s = staffById(e.assigned);
-  if (e.type !== 'Sales') return { key: 'route', label: 'Route it', icon: <IconArrowsSplit size={16} />, hint: 'This is not a new sale. Send it to the right person.' };
-  if (e.stage === 'Lost') return { key: 'reopen', label: 'Reopen enquiry', icon: <IconRefresh size={16} />, hint: `Lost: ${e.lostReason || e.next}. Reopen it if the customer comes back.` };
-  if (!s) return { key: 'assign', label: 'Assign to salesperson', icon: <IconUserPlus size={16} />, hint: 'Choose who handles this enquiry. It then appears in their pipeline as a new enquiry.' };
-  switch (e.stage) {
-    case 'New Enquiry': return { key: 'contact', label: 'Contact customer', icon: <IconSend size={16} />, hint: `Email or call ${e.name}. Everything is saved in Communication and the card moves to Contacted.` };
-    case 'Contacted': return { key: 'appt', label: 'Book appointment', icon: <IconCalendarEvent size={16} />, hint: 'Book a home visit, showroom visit or video call. The card moves to Appointment.' };
-    case 'Appointment': return { key: 'fpSurvey', label: 'Add Framepoint survey', icon: <IconPlugConnected size={16} />, hint: `${s.name.split(' ')[0]} measures up in Framepoint at the visit. Get it straight from Framepoint, or upload the survey report PDF and we read it for you. The card moves to Survey.` };
-    case 'Survey': return e.survey?.fp || e.survey?.status === 'Completed'
-      ? { key: 'quote', label: 'Send quote', icon: <IconFileInvoice size={16} />, hint: 'The Framepoint survey is in. Send the quote and the survey report to the customer to review.' }
-      : { key: 'fpSurvey', label: 'Add Framepoint survey', icon: <IconPlugConnected size={16} />, hint: 'Get the survey from Framepoint, or upload the survey report PDF.' };
-    case 'Quote Sent': return { key: 'reply', label: 'Customer replied', icon: <IconMessageReply size={16} />, hint: 'When the customer replies to the quote, the card moves to Follow-up.' };
-    case 'Follow-up': return { key: 'decide', label: 'Mark as Won', icon: <IconTrophy size={16} />, hint: 'Read their reply in Communication, then mark it as Won or Lost.' };
-  }
-  // Won — a surveyor checks every size, then the office takes over
-  if (!e.jobId && e.finalSurvey?.status !== 'Done') return e.finalSurvey
-    ? { key: 'finalDone', label: 'Final survey done', icon: <IconRulerMeasure size={16} />, hint: `${staffById(e.finalSurvey.surveyor)?.name} visits on ${fmtDate(e.finalSurvey.date)} to check every size. Add the results here (normally sent from their phone).` }
-    : { key: 'finalBook', label: 'Book final survey', icon: <IconRulerMeasure size={16} />, hint: 'The customer said yes. Book a surveyor to check the exact sizes before anything is ordered.' };
-  if (!e.invite || e.invite.status === 'Not invited') return { key: 'invite', label: 'Review & invite customer', icon: <IconWorld size={16} />, hint: 'Check every detail, then send the customer their portal invite.' };
-  if (!e.jobId || !order) return { key: 'order', label: 'Create order & delivery', icon: <IconPackage size={16} />, hint: 'Place the order with the vendor. This creates the job and adds it to the installation diary.' };
-  if (order.status === 'Not confirmed') return { key: 'vendor', label: 'Vendor confirmed', icon: <IconCircleCheck size={16} />, hint: `Waiting for ${order.supplier} to confirm order ${order.ref}. Chase them if it takes too long.` };
-  if (order.status !== 'Arrived') return { key: 'delivered', label: 'Mark as delivered', icon: <IconTruckDelivery size={16} />, hint: `Delivery due ${order.expected}. When it arrives, check it and mark it as delivered.` };
-  if (!install) return { key: 'book', label: 'Book installation', icon: <IconCalendarPlus size={16} />, hint: 'Everything has arrived. Book an installer team in the diary.' };
-  return { key: 'snag', label: 'Add snag or aftercare', icon: <IconTool size={16} />, hint: `Installation booked with ${teamById(install.team)?.name} on ${fmtDate(install.date)}. Log any snag or aftercare problem here.` };
-}
-
-const JOURNEY = ['New enquiry', 'Contacted', 'Appointment', 'Survey', 'Quote sent', 'Follow-up', 'Won', 'Final survey', 'Order & delivery', 'Installation', 'Aftercare'];
-const SALES_IDX: Record<string, number> = { 'New Enquiry': 0, Contacted: 1, Appointment: 2, Survey: 3, 'Quote Sent': 4, 'Follow-up': 5 };
+import { stageTone } from './Enquiries';
 
 const commIcon: Record<string, [any, string]> = {
   'email-out': [IconMailForward, '#2f6fde'], 'email-in': [IconMail, '#0b6e5c'], call: [IconPhoneCall, '#e0a100'], note: [IconNotes, '#3a4a4a'], system: [IconSettings, '#6b7a78'], reminder: [IconBellRinging, '#d64545'],
@@ -88,24 +53,24 @@ export default function EnquiryRecord() {
   useEffect(() => { setTab('overview'); }, [id]);
 
   const s = staffById(e.assigned);
+  const ctx = { events, snags: snags as any };
   const order = orders.find(o => o.job === e.jobId && e.jobId);
   const job = jobs.find(j => j.id === e.jobId);
-  const install = events.find(ev => ev.job === e.jobId && e.jobId && ev.kind === 'install' && ev.team !== 'un');
+  const install = installOf(e, events);
   const waiting = events.find(ev => ev.job === e.jobId && e.jobId && ev.team === 'un');
   const jobSnags = snags.filter(x => x.job === e.jobId && e.jobId);
-  const step = nextStep(e, order, install);
+  const step = stepFor(e, ctx);
   const t = e.quote ? quoteTotals(e.quote) : null;
   const open = e.type === 'Sales' && !['Won', 'Lost'].includes(e.stage);
+  const phases = PHASES.filter(p => p.id !== 'lost');
+  const idx = phases.findIndex(p => p.id === step.phase);
+  const o = e.ops || {};
 
-  // where are we on the journey?
-  let idx = SALES_IDX[e.stage] ?? 6;
-  if (e.stage === 'Won') idx = e.finalSurvey?.status === 'Done' || e.jobId ? 8 : 7;
-  if (e.stage === 'Won' && order) idx = order.status === 'Arrived' && install ? 9 : 8;
-  if (job && ['Installation', 'Snag', 'Complete', 'Aftercare'].includes(job.stage)) idx = job.stage === 'Installation' ? 9 : 10;
-
+  // Who to remind depends on whose turn it is
+  const remindWho = step.role === 'Sales' ? s?.name : step.role === 'Surveyor' ? staffById(e.finalSurvey?.surveyor)?.name : step.role === 'Installer' ? teamById(install?.team)?.name : undefined;
   const remind = () => {
-    updEnq(e.id, {}, { kind: 'reminder', title: `Reminder sent to ${s?.name}`, body: `Please ${e.next.toLowerCase()} for ${e.name}${e.nextDue && e.nextDue !== 'Today' ? ` (due ${e.nextDue})` : ''}.`, who: 'Sarah Mitchell' });
-    toast(`Reminder sent to ${s?.name} · they’ll see it on their phone`);
+    updEnq(e.id, {}, { kind: 'reminder', title: `Reminder sent to ${remindWho}`, body: `Please ${step.label.toLowerCase()} for ${e.name}${e.nextDue && !['Today', '—', 'Done'].includes(e.nextDue) ? ` (due ${e.nextDue})` : ''}.`, who: 'Sarah Mitchell' });
+    toast(`Reminder sent to ${remindWho} · they’ll see it on their phone`);
   };
   const reopen = () => { updEnq(e.id, { stage: 'Follow-up', stageDays: 0, lostReason: undefined, next: 'Follow up again', nextDue: 'Today' }, { kind: 'system', title: 'Enquiry reopened', who: 'Sarah Mitchell' }); toast('Reopened · back in Follow-up'); };
   const go = (k: string) => (k === 'reopen' ? reopen() : setModal(k));
@@ -126,8 +91,12 @@ export default function EnquiryRecord() {
     { label: 'Send an email', icon: <IconMail size={17} />, on: () => setModal('email') },
     { label: 'Log a call', icon: <IconPhoneCall size={17} />, on: () => setModal('call') },
     ...(s && open ? [{ label: 'Move to another salesperson', icon: <IconUserShare size={17} />, on: () => setModal('assign') }] : []),
+    ...(['Quote Sent', 'Follow-up'].includes(e.stage) && e.quote ? [{ label: 'New quote version (Framepoint)', icon: <IconFileInvoice size={17} />, on: () => setModal('revise') }] : []),
     ...(e.invite?.status === 'Invited' ? [{ label: 'Resend portal invite', icon: <IconWorld size={17} />, on: () => setModal('resend') }] : []),
-    ...(e.jobId ? [{ label: 'Add snag or aftercare', icon: <IconTool size={17} />, on: () => setModal('snag') }, { label: `Open job page (${e.jobId})`, icon: <IconExternalLink size={17} />, on: () => { window.location.hash = `#/jobs/${e.jobId}`; } }] : []),
+    ...(e.jobId && !install && !o.received?.ok && !o.override ? [{ label: 'Book before delivery (director override)', icon: <IconShieldCheck size={17} />, on: () => setModal('override') }] : []),
+    ...(e.jobId && !install && o.override ? [{ label: 'Book installation (override approved)', icon: <IconCalendarPlus size={17} />, on: () => setModal('book') }] : []),
+    ...(o.work === 'Started' ? [{ label: 'Installer progress update', icon: <IconTool size={17} />, on: () => setModal('progress') }] : []),
+    ...(e.jobId ? [{ label: o.paid ? 'Log aftercare request' : 'Add snag', icon: <IconTool size={17} />, on: () => setModal(o.paid ? 'aftercare' : 'snag') }, { label: `Open job page (${e.jobId})`, icon: <IconExternalLink size={17} />, on: () => { window.location.hash = `#/jobs/${e.jobId}`; } }] : []),
     ...(open && s ? [{ label: 'Mark as Lost', icon: <IconX size={17} />, on: () => setModal('lost'), danger: true }] : []),
   ];
 
@@ -135,10 +104,10 @@ export default function EnquiryRecord() {
     <>
       <PageHead title={e.name} crumbs={[{ label: 'Enquiries', to: '/enquiries' }, { label: `${e.id} · ${e.name}` }]}
         actions={<>
-          {open && s && <button className="btn btn-outline" onClick={remind}><IconBellRinging size={16} />Remind {s.name.split(' ')[0]}</button>}
+          {remindWho && !['reopen'].includes(step.key) && <button className="btn btn-outline" onClick={remind}><IconBellRinging size={16} />Remind {remindWho.split(' ')[0] === 'Team' ? remindWho : remindWho.split(' ')[0]}</button>}
           {e.type === 'Sales' && <MoreMenu items={more} />}
           {step.key === 'decide' ? <><button className="btn btn-outline" style={{ color: 'var(--err)' }} onClick={() => setModal('lost')}><IconX size={16} />Mark as Lost</button><button className="btn btn-primary" onClick={() => setModal('won')}><IconTrophy size={16} />Mark as Won</button></>
-            : <button className={`btn ${step.key === 'route' ? 'btn-dark' : 'btn-primary'}`} onClick={() => go(step.key)}>{step.icon}{step.label}</button>}
+            : <button className={`btn ${step.key === 'route' ? 'btn-dark' : step.wait ? 'btn-outline' : 'btn-primary'}`} onClick={() => go(step.key)}>{step.icon}{step.label}</button>}
         </>} />
 
       {/* Header */}
@@ -149,7 +118,7 @@ export default function EnquiryRecord() {
             <div className="hstack" style={{ flexWrap: 'wrap' }}><h2 style={{ fontSize: 20 }}>{e.name}</h2><Tag tone={stageTone[e.stage]}>{e.stage}</Tag>{e.type !== 'Sales' && <Tag tone="warn">{e.type}</Tag>}<Tag tone="grey">{e.product}</Tag>{e.jobId && <Link to={`/jobs/${e.jobId}`}><Tag tone="info">Job {e.jobId}</Tag></Link>}</div>
             <div className="hstack small t2" style={{ gap: 16, flexWrap: 'wrap' }}><span className="hstack" style={{ gap: 5 }}><IconPhone size={14} />{e.phone}</span><span className="hstack" style={{ gap: 5 }}><IconMail size={14} />{e.email}</span><span className="hstack" style={{ gap: 5 }}><IconHome size={14} />{e.address}, {e.postcode}</span></div>
             <div className="hstack" style={{ gap: 10, marginTop: 4, flexWrap: 'wrap' }}>
-              {([['Received', e.received], ['Salesperson', s ? s.name : 'Not assigned'], ['Surveyor', staffById(e.finalSurvey?.surveyor)?.name || '—'], ['Value', t ? gbp(t.total) : e.value ? gbp(e.value) : '—'], ['Next step', `${e.next} · ${e.nextDue}`]] as [string, string][]).map(([l, v]) => (
+              {([['Received', e.received], ['Salesperson', s ? s.name : 'Not assigned'], ['Surveyor', staffById(e.finalSurvey?.surveyor)?.name || '—'], ['Value', t ? gbp(t.total) : e.value ? gbp(e.value) : '—'], ['Next step', `${step.label} · ${step.role}`]] as [string, string][]).map(([l, v]) => (
                 <div key={l} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px' }}><div className="tiny muted">{l}</div><b style={{ fontSize: 13, color: v === 'Not assigned' || v.endsWith('Overdue') ? 'var(--err)' : 'var(--text)' }}>{v}</b></div>
               ))}
             </div>
@@ -157,10 +126,10 @@ export default function EnquiryRecord() {
         </div>
         {e.type === 'Sales' && (
           <div className="stepper journey" style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
-            {JOURNEY.map((j, i) => (
-              <React.Fragment key={j}>
+            {phases.map((p, i) => (
+              <React.Fragment key={p.id}>
                 {i > 0 && <span className="step-line" />}
-                <span className={`step ${e.stage === 'Lost' ? '' : i < idx ? 'done' : i === idx ? 'now' : ''}`}>{i < idx && e.stage !== 'Lost' && <IconCircleCheck size={14} />}{j}</span>
+                <span className={`step ${e.stage === 'Lost' ? '' : i < idx ? 'done' : i === idx ? 'now' : ''}`}>{i < idx && e.stage !== 'Lost' && <IconCircleCheck size={14} />}{p.label}</span>
               </React.Fragment>
             ))}
             {e.stage === 'Lost' && <><span className="step-line" /><span className="step now" style={{ background: 'var(--err)', borderColor: 'var(--err)' }}><IconX size={14} />Lost</span></>}
@@ -169,9 +138,9 @@ export default function EnquiryRecord() {
       </Card>
 
       {/* What happens next — in plain words */}
-      <div className={`alert ${step.key === 'assign' || step.key === 'route' ? 'warn' : e.stage === 'Lost' ? 'err' : 'info'}`}>
+      <div className={`alert ${needsOffice(step) ? 'warn' : e.stage === 'Lost' ? 'err' : 'info'}`}>
         <IconArrowRight size={18} />
-        <div><b>Next step: {step.key === 'decide' ? 'Mark as Won or Lost' : step.label}.</b> {step.hint}</div>
+        <div><b>Next step: {step.key === 'decide' ? 'Mark as Won or Lost' : step.label}</b> <Tag tone={roleTone[step.role]}>{needsOffice(step) ? 'Your turn · Office' : step.role}</Tag> {step.hint}</div>
       </div>
 
       <div className="row">
@@ -186,6 +155,17 @@ export default function EnquiryRecord() {
                 <div className="vstack" style={{ gap: 12 }}><b>Property</b><Info items={[['Address', e.address], ['Postcode', e.postcode], ['Property type', 'Semi-detached'], ['Built', '1930s'], ['Parking', e.survey?.parking || 'Driveway'], ['Access', e.survey?.access || 'Side gate'], ['Conservation area', 'No'], ['Notes', e.survey?.notes || e.appt?.notes || '—']]} /></div>
                 <div className="divider" />
                 <div className="vstack" style={{ gap: 12 }}><b>Project</b><Info items={[['Products', e.survey?.fp ? `${e.survey.fp.items.filter(i => !i.service).reduce((a, i) => a + i.qty, 0)} frames · ${e.product}` : e.product], ['Framepoint', e.survey?.fp ? `${e.survey.fp.ref} · ${e.survey.fp.source === 'Framepoint' ? 'imported' : 'read from PDF'}` : 'No survey yet'], ['Final survey', e.finalSurvey ? (e.finalSurvey.status === 'Done' ? `Done ${e.finalSurvey.doneOn || ''}` : `Booked ${fmtDate(e.finalSurvey.date)}`) : '—'], ['Quote', e.quote ? `${e.quote.ref} · ${e.quote.status}` : 'Not sent yet'], ['Quote total', t ? gbp(t.total) : '—'], [`Deposit (${t?.depositPct ?? 50}%)`, t ? gbp(t.deposit) : '—'], ['Won on', e.wonOn || '—'], ['Job', e.jobId || 'Created when ordered'], ['Vendor', order ? `${order.supplier} · ${order.ref}` : '—'], ['Customer portal', e.invite?.status || 'Not invited']]} /></div>
+                <div className="divider" />
+                <div className="vstack" style={{ gap: 12 }}>
+                  <div className="between"><b>Complete journey</b><span className="tiny muted">Who does each step · ticked when done</span></div>
+                  {(() => { const jl = journeyList(e, ctx).filter(j => !j.skip); const first = jl.findIndex(x => !x.done); return (
+                  <div className="journey-list" style={{ gridTemplateRows: `repeat(${Math.ceil(jl.length / 2)}, auto)` }}>
+                    {jl.map((j, n) => {
+                      const now = n === first;
+                      return <div key={j.label} className={`jl ${j.done ? 'done' : ''} ${now ? 'now' : ''}`}>{j.done ? <IconCircleCheck size={16} color="#1f9d5b" /> : <span className="jl-dot" />}<span className="jl-label"><span className="muted">{n + 1}.</span> {j.label}</span><Tag tone={roleTone[j.role]}>{j.role}</Tag>{j.when && <span className="tiny muted">{j.when}</span>}</div>;
+                    })}
+                  </div>); })()}
+                </div>
               </div>
             )}
 
@@ -243,16 +223,17 @@ export default function EnquiryRecord() {
             {tab === 'final' && e.finalSurvey && <FinalSurveyView e={e} />}
 
             {tab === 'order' && (
-              !order ? <Empty icon={<IconPackage size={22} />} title="Not ordered yet" sub="Use “Create order & delivery” at the top once the customer has been invited." /> : (
+              !order ? <Empty icon={<IconPackage size={22} />} title="Not ordered yet" sub="The order is placed after the final survey, readiness and order checks." /> : (
                 <div className="vstack" style={{ gap: 16 }}>
                   <div className="between">
                     <span className="hstack" style={{ gap: 10 }}><Avatar i={order.supplier[0]} size={36} /><span className="vstack" style={{ gap: 2 }}><b>{order.supplier} · {order.ref}</b><span className="tiny muted">Job {order.job}{order.confirmRef ? ` · confirmation ${order.confirmRef}` : ''}</span></span></span>
-                    {order.status !== 'Arrived' && <button className="btn btn-outline btn-sm" onClick={() => { updEnq(e.id, {}, { kind: 'reminder', title: `Chased ${order.supplier}`, body: `Asked ${order.supplier} to ${order.confirmed ? 'confirm the delivery date' : 'confirm order ' + order.ref}.`, who: 'Sarah Mitchell' }); toast(`Chase email sent to ${order.supplier}`); }}><IconBellRinging size={14} />Chase vendor</button>}
+                    {o.delivery !== 'Delivered' && <button className="btn btn-outline btn-sm" onClick={() => { updEnq(e.id, {}, { kind: 'reminder', title: `Chased ${order.supplier}`, body: `Asked ${order.supplier} to ${order.confirmed ? 'confirm the delivery date' : 'confirm order ' + order.ref}.`, who: 'Sarah Mitchell' }); toast(`Chase email sent to ${order.supplier}`); }}><IconBellRinging size={14} />Chase vendor</button>}
                   </div>
                   <div className="stepper">
-                    {['Ordered', 'Vendor confirmed', 'Delivered'].map((x, i) => { const at = order.status === 'Arrived' ? 3 : order.confirmed ? 2 : 1; return <React.Fragment key={x}>{i > 0 && <span className="step-line" />}<span className={`step ${i < at ? 'done' : ''} ${i === at ? 'now' : ''}`}>{i < at && <IconCircleCheck size={14} />}{x}</span></React.Fragment>; })}
+                    {['Pending', 'Confirmed', 'In production', 'In transit', 'Delivered', 'Checked'].map((x, i) => { const at = o.received?.ok ? 6 : ['Pending', 'Confirmed', 'In production', 'In transit', 'Delivered'].indexOf(o.delivery || 'Pending') + (o.delivery === 'Delivered' ? 1 : 0); return <React.Fragment key={x}>{i > 0 && <span className="step-line" />}<span className={`step ${i < at ? 'done' : ''} ${i === at ? 'now' : ''}`}>{i < at && <IconCircleCheck size={14} />}{x}</span></React.Fragment>; })}
                   </div>
-                  <Info items={[['Order date', order.ordered], ['Expected delivery', order.expected], ['Frames', order.frames], ['Status', <Tag tone={order.tone}>{order.status}</Tag>], ['Deliver to', e.address], ['Vendor contact', order.supplier === 'Origin' ? 'orders@origin-global.com' : 'orders@emplas.co.uk'], ['Deposit', job ? (job.paid >= job.deposit ? `${gbp(job.deposit)} paid` : `${gbp(job.deposit)} not paid`) : '—'], ['Customer portal', e.invite?.status || '—']]} />
+                  <Info items={[['Order date', order.ordered], ['Expected delivery', order.expected], ['Frames', order.frames], ['Status', <Tag tone={order.tone}>{o.delivery || order.status}</Tag>], ['Deliver to', e.address], ['Vendor contact', order.supplier === 'Origin' ? 'orders@origin-global.com' : 'orders@emplas.co.uk'], ['Deposit', job ? (job.paid >= job.deposit ? `${gbp(job.deposit)} paid` : `${gbp(job.deposit)} not paid`) : '—'], ['Customer portal', e.invite?.status || '—']]} />
+                  {o.received && <div className={`alert ${o.received.ok ? 'ok' : 'err'} small`}>{o.received.ok ? <IconCircleCheck size={16} /> : <IconAlertTriangle size={16} />}{o.received.ok ? `Delivery checked ${o.received.on} · ${o.received.photos} photos` : `Problem: ${o.received.issue}`}</div>}
                   <div className="vstack" style={{ gap: 8 }}>
                     <b style={{ fontSize: 13 }}>Products</b>
                     {orderLines(e).map((l, i) => <div key={i} className="hstack" style={{ gap: 12 }}><img src={IMG[e.photo]} alt="" style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover' }} /><div className="vstack" style={{ gap: 2 }}><b style={{ fontSize: 13 }}>{l.qty} × {l.item}</b><span className="tiny muted">{l.spec}{l.size ? ` · ${l.size}` : ''}</span></div></div>)}
@@ -266,6 +247,8 @@ export default function EnquiryRecord() {
                 {install ? (
                   <>
                     <div className="between"><b>Installation booked</b><Tag tone="ok">In the diary</Tag></div>
+                    {o.override && <div className="alert warn small"><IconShieldCheck size={16} /><div>Booked with a readiness override by <b>&nbsp;{o.override.by}&nbsp;</b> on {o.override.on}: {o.override.reason}</div></div>}
+                    <Info items={[['Job pack', o.pack ? `Sent ${o.pack}` : 'Not sent yet'], ['Installer read it', o.installerReviewed ? 'Yes' : '—'], ['Progress', o.work === 'Submitted' ? 'Finished' : o.work ? `${o.progress || 0}% done` : 'Not started'], ['Completion', o.completion ? `${o.completion.on} · ${o.completion.photos} photos · ${o.completion.signed ? 'signed' : 'not signed'}` : '—']]} />
                     <Info items={[['Team', teamById(install.team)?.name || '—'], ['Installers', teamById(install.team)?.members || '—'], ['Start', fmtDate(install.date, { weekday: 'long', day: 'numeric', month: 'long' })], ['Days', `${install.days} day${install.days > 1 ? 's' : ''}`], ['Ends', fmtDate(addDays(install.date, install.days - 1))], ['Customer told', 'Yes · email and portal']]} />
                   </>
                 ) : waiting ? (
@@ -318,28 +301,7 @@ export default function EnquiryRecord() {
         </div>
       </div>
 
-      {modal === 'assign' && <AssignModal enquiryId={e.id} onClose={() => setModal(null)} />}
-      {modal === 'route' && <RouteModal id={e.id} onClose={() => setModal(null)} />}
-      {modal === 'contact' && <ContactModal e={e} onClose={() => setModal(null)} onDone={done} />}
-      {modal === 'email' && <ContactModal e={e} logOnly="email" onClose={() => setModal(null)} onDone={done} />}
-      {modal === 'call' && <ContactModal e={e} logOnly="call" onClose={() => setModal(null)} onDone={done} />}
-      {modal === 'appt' && <BookApptModal e={e} onClose={() => setModal(null)} onDone={done} />}
-      {modal === 'survey' && <RequestSurveyModal e={e} onClose={() => setModal(null)} onDone={done} />}
-      {modal === 'surveyDone' && <SurveyResultsModal e={e} onClose={() => setModal(null)} onDone={done} />}
-      {modal === 'fpSurvey' && <FramepointSurveyModal e={e} onClose={() => setModal(null)} onDone={done} />}
-      {modal === 'finalBook' && <BookFinalSurveyModal e={e} onClose={() => setModal(null)} onDone={done} />}
-      {modal === 'finalDone' && e.finalSurvey && <FinalSurveyModal e={e} onClose={() => setModal(null)} onDone={done} />}
-      {modal === 'quote' && <SendQuoteModal e={e} onClose={() => setModal(null)} onDone={done} />}
-      {modal === 'reply' && <ReplyModal e={e} onClose={() => setModal(null)} onDone={done} />}
-      {modal === 'won' && <WonModal e={e} onClose={() => setModal(null)} onDone={done} />}
-      {modal === 'lost' && <LostModal e={e} onClose={() => setModal(null)} onDone={done} />}
-      {modal === 'invite' && <InviteModal e={e} onClose={() => setModal(null)} onDone={done} />}
-      {modal === 'resend' && <InviteModal e={e} resend onClose={() => setModal(null)} onDone={done} />}
-      {modal === 'order' && <OrderModal e={e} onClose={() => setModal(null)} onDone={done} />}
-      {modal === 'vendor' && <VendorConfirmModal e={e} onClose={() => setModal(null)} onDone={done} />}
-      {modal === 'delivered' && <DeliveredModal e={e} onClose={() => setModal(null)} onDone={done} />}
-      {modal === 'book' && e.jobId && <BookInstallModal jobId={e.jobId} presetDate={waiting?.date} onClose={() => { setModal(null); setTab('install'); }} />}
-      {modal === 'snag' && <AddSnagModal e={e} onClose={() => setModal(null)} onDone={done} />}
+      {modal && <ActionModal k={modal} e={e} onClose={() => setModal(null)} onDone={done} />}
     </>
   );
 }

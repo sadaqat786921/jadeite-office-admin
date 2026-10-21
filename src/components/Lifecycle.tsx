@@ -12,12 +12,12 @@ import { useStore, TODAY, addDays, fmtDate, EnquiryX, JobX } from '../data/store
 import { Opening, OPENING_TYPES, Quote, quoteTotals, linesFromFp } from '../data/lifecycle';
 import { FPItem, FPSurvey, FinalCheck, fpTotals, makeFpSurvey, nextFpRef, guessOpeningsFor, OCR_UNSURE } from '../data/framepoint';
 
-type P = { e: EnquiryX; onClose: () => void; onDone?: (tab: string) => void };
-const ME = 'Sarah Mitchell';
+export type P = { e: EnquiryX; onClose: () => void; onDone?: (tab: string) => void };
+export const ME = 'Sarah Mitchell';
 const first = (n: string) => n.split(' ').pop() || n;
 const town = (a: string) => a.split(', ').pop() || a;
 
-function PickPerson({ people, value, onChange, load }: { people: { id: string; name: string; initials: string }[]; value: string; onChange: (v: string) => void; load?: Record<string, string> }) {
+export function PickPerson({ people, value, onChange, load }: { people: { id: string; name: string; initials: string }[]; value: string; onChange: (v: string) => void; load?: Record<string, string> }) {
   return (
     <div className="grid-2" style={{ gap: 10 }}>
       {people.map(s => (
@@ -31,11 +31,11 @@ function PickPerson({ people, value, onChange, load }: { people: { id: string; n
   );
 }
 
-const Foot = ({ onClose, label, onSave, disabled, icon }: { onClose: () => void; label: string; onSave: () => void; disabled?: boolean; icon?: React.ReactNode }) => (
+export const Foot = ({ onClose, label, onSave, disabled, icon }: { onClose: () => void; label: string; onSave: () => void; disabled?: boolean; icon?: React.ReactNode }) => (
   <><button className="btn btn-grey" onClick={onClose}>Cancel</button><button className="btn btn-primary" disabled={disabled} style={{ opacity: disabled ? 0.45 : 1 }} onClick={onSave}>{icon}{label}</button></>
 );
 
-/* ---------- 1. Contact the customer → Contacted ---------- */
+/* ---------- 1. Contact the customer → Qualification ---------- */
 export function ContactModal({ e, onClose, onDone, logOnly }: P & { logOnly?: 'email' | 'call' }) {
   const toast = useToast();
   const { updEnq } = useStore();
@@ -47,9 +47,9 @@ export function ContactModal({ e, onClose, onDone, logOnly }: P & { logOnly?: 'e
   const moving = !logOnly && e.stage === 'New Enquiry';
   const save = () => {
     const who = s?.name || ME;
-    updEnq(e.id, moving ? { stage: 'Contacted', stageDays: 0, next: 'Book appointment', nextDue: fmtDate(addDays(TODAY, 2)) } : {},
+    updEnq(e.id, moving ? { stage: 'Qualification', stageDays: 0, next: 'Book appointment', nextDue: fmtDate(addDays(TODAY, 2)) } : {},
       how === 'email' ? { kind: 'email-out', title: subject || 'Email to customer', body, who } : { kind: 'call', title: `Call with ${e.name}`, body: notes || 'Call logged.', who });
-    toast(moving ? `${how === 'email' ? 'Email sent' : 'Call saved'} · ${e.name} moved to Contacted` : `${how === 'email' ? 'Email sent' : 'Call saved'} · saved in Communication`);
+    toast(moving ? `${how === 'email' ? 'Email sent' : 'Call saved'} · ${e.name} moved to Qualification` : `${how === 'email' ? 'Email sent' : 'Call saved'} · saved in Communication`);
     onDone?.('comms'); onClose();
   };
   return (
@@ -65,7 +65,7 @@ export function ContactModal({ e, onClose, onDone, logOnly }: P & { logOnly?: 'e
       ) : (
         <Field label="What did you talk about?" hint="This is saved in the Communication tab so everyone can see it."><textarea className="textarea" style={{ minHeight: 140 }} value={notes} onChange={x => setNotes(x.target.value)} placeholder="e.g. Wants 6 windows in anthracite grey. Free for a visit next Tuesday morning." /></Field>
       )}
-      {moving && <div className="alert info small"><IconInfoCircle size={16} />The card moves from <b>&nbsp;New enquiry&nbsp;</b> to <b>&nbsp;Contacted&nbsp;</b> in the pipeline.</div>}
+      {moving && <div className="alert info small"><IconInfoCircle size={16} />The card moves from <b>&nbsp;New enquiry&nbsp;</b> to <b>&nbsp;Qualification&nbsp;</b> in the pipeline.</div>}
     </Modal>
   );
 }
@@ -97,95 +97,6 @@ export function BookApptModal({ e, onClose, onDone }: P) {
       </div>
       <Field label="Notes for the salesperson (optional)"><input className="input" value={notes} onChange={x => setNotes(x.target.value)} placeholder="e.g. Park on the drive. Ring the side door." /></Field>
       <Check on label="Email the customer a confirmation and add it to the Outlook calendar" />
-    </Modal>
-  );
-}
-
-/* ---------- 3. Request survey → Survey ---------- */
-export function RequestSurveyModal({ e, onClose, onDone }: P) {
-  const toast = useToast();
-  const { updEnq, set } = useStore();
-  const [outcome, setOutcome] = useState(e.appt?.outcome || '');
-  const [who, setWho] = useState('ps');
-  const [date, setDate] = useState(addDays(TODAY, 5));
-  const [time, setTime] = useState('09:00 – 10:30');
-  const busy = who === 'ps' && date === '2026-10-19';
-  const save = () => {
-    const s = staffById(who)!;
-    updEnq(e.id, { stage: 'Survey', stageDays: 0, appt: e.appt ? { ...e.appt, status: 'Done', outcome } : e.appt, survey: { surveyor: who, date, time, status: 'Booked', requestedBy: staffById(e.assigned)?.name || ME }, next: 'Survey visit', nextDue: fmtDate(date) },
-      { kind: 'email-out', title: 'Your survey is booked', body: `Dear ${e.name}, ${s.name} will visit on ${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })} (${time}) to take exact measurements.`, who: ME });
-    set('surveys', ss => [{ id: 'SV-' + (312 + ss.length), job: e.id, customer: e.name, address: e.address, date: fmtDate(date), time, surveyor: who, status: 'Booked', tone: 'info', photo: e.photo }, ...ss]);
-    set('appts', as => [...as, { id: 'ap' + Date.now(), kind: 'Survey', customer: e.name, who, date, time, address: e.address, synced: true, status: 'Booked' }]);
-    toast(`Survey booked with ${s.name} · ${fmtDate(date)} · moved to Survey`);
-    onDone?.('survey'); onClose();
-  };
-  return (
-    <Modal title="Request a survey" sub={`${e.name} · ${e.address}`} onClose={onClose} width={660} footer={<Foot onClose={onClose} onSave={save} disabled={busy || outcome.trim().length < 3} label="Book survey and tell everyone" icon={<IconClipboardCheck size={16} />} />}>
-      <Field label="How did the appointment go?" hint="Saved on the Appointment tab."><textarea className="textarea" value={outcome} onChange={x => setOutcome(x.target.value)} placeholder="e.g. Chose 5 white sash windows. Happy for a survey next week." /></Field>
-      <Field label="Which surveyor?"><PickPerson people={surveyors} value={who} onChange={setWho} load={{ ps: 'Leeds and Harrogate · 3 surveys this week', rk: 'Ripon and Thirsk · 2 surveys this week' }} /></Field>
-      <div className="grid-2">
-        <Field label="Date"><input type="date" className="input" value={date} onChange={x => setDate(x.target.value)} /></Field>
-        <Field label="Time"><select className="select" value={time} onChange={x => setTime(x.target.value)}>{['09:00 – 10:30', '11:00 – 12:30', '13:30 – 15:00', '15:30 – 17:00'].map(t => <option key={t}>{t}</option>)}</select></Field>
-      </div>
-      {busy ? <div className="alert err"><IconAlertTriangle size={18} /><div><b>Priya is busy then.</b> She has another survey on Mon 19 Oct. Pick another day or Rob King.</div></div>
-        : <div className="alert ok"><IconCircleCheck size={18} /><div><b>{staffById(who)?.name} is free</b> on {fmtDate(date)}. The customer gets an email and the surveyor sees it on their phone.</div></div>}
-    </Modal>
-  );
-}
-
-/* ---------- 4. Surveyor completes the survey ---------- */
-const guessOpenings = (e: EnquiryX): Opening[] => {
-  const p = e.product.toLowerCase();
-  if (p.includes('bi-fold')) return [{ ref: 'D1', room: 'Kitchen / garden', type: 'Bi-fold door (3-pane)', w: 2400, h: 2100, qty: 1 }];
-  if (p.includes('door')) return [{ ref: 'D1', room: 'Front entrance', type: 'Composite front door', w: 920, h: 2090, qty: 1 }];
-  if (p.includes('roof') || p.includes('lantern')) return [{ ref: 'R1', room: 'Extension', type: 'Roof lantern', w: 2000, h: 1000, qty: 1 }];
-  if (p.includes('conserv')) return [{ ref: 'C1', room: 'Rear garden', type: 'Conservatory', w: 4000, h: 3000, qty: 1 }];
-  if (p.includes('sash')) return [{ ref: 'W1', room: 'Lounge', type: 'Sash window', w: 950, h: 1600, qty: 2 }];
-  return [{ ref: 'W1', room: 'Lounge', type: 'Casement window', w: 1200, h: 1200, qty: 2 }, { ref: 'W2', room: 'Bedroom 1', type: 'Casement window', w: 1100, h: 1050, qty: 2 }];
-};
-export function SurveyResultsModal({ e, onClose, onDone }: P) {
-  const toast = useToast();
-  const { updEnq, set } = useStore();
-  const [ops, setOps] = useState<Opening[]>(e.survey?.openings || guessOpenings(e));
-  const [access, setAccess] = useState('Front and side, easy');
-  const [parking, setParking] = useState('Driveway');
-  const [notes, setNotes] = useState('');
-  const [signed, setSigned] = useState(true);
-  const s = staffById(e.survey?.surveyor);
-  const upd = (i: number, k: keyof Opening, v: any) => setOps(o => o.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
-  const save = () => {
-    updEnq(e.id, { survey: { ...e.survey!, status: 'Completed', openings: ops, access, parking, notes, photos: 6 + ops.length * 2, signed, completedOn: fmtDate(TODAY, { day: '2-digit', month: 'short' }) }, next: 'Send quote', nextDue: 'Today' },
-      { kind: 'note', title: 'Survey completed', body: `${ops.reduce((a, o) => a + o.qty, 0)} frame${ops.reduce((a, o) => a + o.qty, 0) === 1 ? '' : 's'} measured. ${notes}`.trim(), who: s?.name || 'Surveyor' });
-    set('surveys', ss => ss.map(x => (x.job === e.id ? { ...x, status: 'Approved', tone: 'ok' } : x)));
-    toast('Survey completed · the quote can now be sent');
-    onDone?.('survey'); onClose();
-  };
-  return (
-    <Modal title="Survey results" sub={`Filled in by ${s?.name || 'the surveyor'} on their phone · ${e.name}`} onClose={onClose} width={820} footer={<Foot onClose={onClose} onSave={save} label="Mark survey completed" icon={<IconCircleCheck size={16} />} />}>
-      <div className="vstack" style={{ gap: 8 }}>
-        <b style={{ fontSize: 13 }}>Measurements</b>
-        <table className="tbl" style={{ border: '1px solid var(--border)', borderRadius: 10 }}>
-          <thead><tr><th>Ref</th><th>Room</th><th>Product</th><th>Width (mm)</th><th>Height (mm)</th><th>Qty</th><th></th></tr></thead>
-          <tbody>{ops.map((o, i) => (
-            <tr key={i}>
-              <td className="b">{o.ref}</td>
-              <td><input className="input" style={{ height: 32 }} value={o.room} onChange={x => upd(i, 'room', x.target.value)} /></td>
-              <td><select className="select" style={{ height: 32 }} value={o.type} onChange={x => upd(i, 'type', x.target.value)}>{OPENING_TYPES.map(t => <option key={t}>{t}</option>)}</select></td>
-              <td><input className="input" style={{ height: 32, width: 90 }} type="number" value={o.w} onChange={x => upd(i, 'w', +x.target.value)} /></td>
-              <td><input className="input" style={{ height: 32, width: 90 }} type="number" value={o.h} onChange={x => upd(i, 'h', +x.target.value)} /></td>
-              <td><input className="input" style={{ height: 32, width: 60 }} type="number" min={1} value={o.qty} onChange={x => upd(i, 'qty', Math.max(1, +x.target.value))} /></td>
-              <td>{ops.length > 1 && <button className="icon-btn" aria-label="Remove" onClick={() => setOps(o2 => o2.filter((_, j) => j !== i))}><IconTrash size={15} /></button>}</td>
-            </tr>
-          ))}</tbody>
-        </table>
-        <button className="btn btn-outline btn-xs" style={{ alignSelf: 'flex-start' }} onClick={() => setOps(o => [...o, { ref: `W${o.length + 1}`, room: '', type: 'Casement window', w: 1000, h: 1000, qty: 1 }])}><IconPlus size={13} />Add another opening</button>
-      </div>
-      <div className="grid-2">
-        <Field label="Access"><input className="input" value={access} onChange={x => setAccess(x.target.value)} /></Field>
-        <Field label="Parking"><input className="input" value={parking} onChange={x => setParking(x.target.value)} /></Field>
-      </div>
-      <Field label="Notes for the fitters (optional)"><input className="input" value={notes} onChange={x => setNotes(x.target.value)} placeholder="e.g. Dog in the garden — keep the side gate shut" /></Field>
-      <Check on={signed} onChange={setSigned} label="Customer has signed the survey on the surveyor's phone" />
     </Modal>
   );
 }
@@ -262,18 +173,18 @@ export function FramepointSurveyModal({ e, onClose, onDone }: P) {
     const base = fresh();
     const fp: FPSurvey = { ...base, items, file: pdf ? fileName : base.file, checked: pdf ? OCR_UNSURE : undefined };
     updEnq(e.id, {
-      stage: 'Survey', stageDays: 0, value: t.total,
+      stage: 'Quote Preparation', stageDays: 0, value: t.total, versions: [{ ref: fp.ref, on: todayShort(), total: t.total, note: 'First quote' }],
       appt: e.appt ? { ...e.appt, status: 'Done', outcome: outcome.trim() || e.appt.outcome } : e.appt,
       survey: { surveyor: e.assigned || 'mh', date: TODAY, time: e.appt?.time || '', status: 'Completed', requestedBy: by, openings: ops, completedOn: todayShort(), fp },
       next: 'Send quote', nextDue: 'Today',
     }, { kind: 'note', title: pdf ? `Survey report read and checked · ${fp.ref}` : `Framepoint survey ${fp.ref} imported`, body: `${frameCount(items)} frame${frameCount(items) === 1 ? '' : 's'} measured by ${by} at the visit. Final price ${gbp(t.total)} inc. VAT.${pdf ? ` Report ${fp.file} saved.` : ''}`, who: pdf ? ME : 'Framepoint' });
-    toast(`Survey saved · ${gbp(t.total)} · moved to Survey. Next: send the quote`);
+    toast(`Framepoint quote ${fp.ref} linked · ${gbp(t.total)} · ready to send`);
     onDone?.('survey'); onClose();
   };
   return (
-    <Modal title="Add the Framepoint survey" sub={`Measured by ${by} at the visit · ${e.name} · ${e.address}`} onClose={onClose} width={880}
+    <Modal title="Add the Framepoint survey & quote" sub={`Designed and priced by ${by} in Framepoint · ${e.name} · ${e.address}`} onClose={onClose} width={880}
       footer={<Foot onClose={onClose} onSave={save} disabled={phase !== 'ready' || (pdf && !checked)} label={pdf ? 'Save survey' : 'Import survey and prices'} icon={<IconCircleCheck size={16} />} />}>
-      <div className="alert info small"><IconInfoCircle size={16} /><div>{by.split(' ')[0]} measured up and priced the job in <b>Framepoint</b> at the visit. Bring it in here — nothing needs typing again.</div></div>
+      <div className="alert info small"><IconInfoCircle size={16} /><div>{by.split(' ')[0]} designed and priced the job in <b>Framepoint</b> from the appointment notes. Link it here — nothing needs typing again.</div></div>
       {e.appt && !e.appt.outcome && <Field label="How did the appointment go? (optional)" hint="Saved on the Appointment tab."><input className="input" value={outcome} onChange={x => setOutcome(x.target.value)} placeholder="e.g. Chose white sash windows. Happy with the price." /></Field>}
       <Seg value={how} onChange={switchHow} items={[{ id: 'api', label: 'Get it from Framepoint', icon: <IconPlugConnected size={15} /> }, { id: 'pdf', label: 'Upload survey report (PDF)', icon: <IconFileUpload size={15} /> }]} />
 
@@ -459,7 +370,7 @@ export function QuoteDoc({ e, q }: { e: EnquiryX; q: Pick<Quote, 'ref' | 'lines'
 /* ---------- 4. Send quote for customer review → Quote sent ---------- */
 export function SendQuoteModal({ e, onClose, onDone }: P) {
   const toast = useToast();
-  const { updEnq } = useStore();
+  const { updEnq, set } = useStore();
   const sentBy = staffById(e.assigned)?.name || ME;
   const [fp] = useState<FPSurvey>(() => e.survey?.fp || makeFpSurvey(guessOpeningsFor(e.product), sentBy, todayShort()));
   const lines = linesFromFp(fp.items);
@@ -471,7 +382,8 @@ export function SendQuoteModal({ e, onClose, onDone }: P) {
   const save = () => {
     updEnq(e.id, { stage: 'Quote Sent', stageDays: 0, value: t.total, quote: { ...q, status: 'Sent', files }, next: 'Wait for the customer to reply', nextDue: fmtDate(addDays(TODAY, 3)) },
       { kind: 'email-out', title: `Your Jadeite quote ${fp.ref} — please review`, body: `${msg}\n\nAttached: ${files.join(', ')}`, who: sentBy });
-    toast(`Quote ${fp.ref} sent for review · ${gbp(t.total)} · moved to Quote sent`);
+    set('tasks', ts => [{ id: 'tk' + Date.now(), title: `Follow up quote ${fp.ref} with ${e.name}`, owner: e.assigned || 'mh', due: addDays(TODAY, 3), done: false }, ...ts]);
+    toast(`Quote ${fp.ref} sent · follow-up task set for ${fmtDate(addDays(TODAY, 3))} · moved to Quote sent`);
     onDone?.('quote'); onClose();
   };
   return (
@@ -536,7 +448,7 @@ export function FinalSurveyModal({ e, onClose, onDone }: P) {
   const changed = checks.filter(c => c.checked.replace(/\s/g, '') !== c.sales.replace(/\s/g, '')).length;
   const save = () => {
     const final = checks.map(c => ({ ...c, ok: c.checked.replace(/\s/g, '') === c.sales.replace(/\s/g, '') }));
-    updEnq(e.id, { finalSurvey: { ...fs, status: 'Done', checks: final, notes: notes || (changed ? `${changed} size${changed > 1 ? 's' : ''} changed.` : 'All sizes confirmed.'), signed, doneOn: todayShort() }, next: 'Review and invite customer', nextDue: 'Today' },
+    updEnq(e.id, { finalSurvey: { ...fs, status: 'Done', checks: final, notes: notes || (changed ? `${changed} size${changed > 1 ? 's' : ''} changed.` : 'All sizes confirmed.'), signed, doneOn: todayShort() }, next: changed ? 'Revise quote in Framepoint' : 'Contract & financial readiness', nextDue: 'Today' },
       { kind: 'note', title: `Final survey done · ${changed ? `${changed} size${changed > 1 ? 's' : ''} changed` : 'all sizes match'}`, body: `${final.length} item${final.length === 1 ? '' : 's'} checked on site.${changed ? ' The order will use the surveyor’s sizes.' : ''} ${notes}`.trim(), who: s?.name || 'Surveyor' });
     set('surveys', ss => ss.map(x => (x.job === e.id ? { ...x, status: 'Approved', tone: 'ok' } : x)));
     toast(changed ? `Final survey saved · ${changed} size${changed > 1 ? 's' : ''} updated for the order` : 'Final survey saved · all sizes match');
@@ -617,20 +529,29 @@ export function WonModal({ e, onClose, onDone }: P) {
   const toast = useToast();
   const { updEnq } = useStore();
   const t = e.quote ? quoteTotals(e.quote) : null;
+  const inv = 'INV-' + (3400 + Math.abs(e.id.split('-')[1].charCodeAt(0) + +e.id.slice(-2)));
+  const [state, setState] = useState<'unpaid' | 'checking' | 'paid'>(e.ops?.deposit ? 'paid' : 'unpaid');
+  const [sent, setSent] = useState(false);
+  const check = () => { setState('checking'); window.setTimeout(() => setState('paid'), 900); };
   const save = () => {
-    updEnq(e.id, { stage: 'Won', stageDays: 0, wonOn: fmtDate(TODAY, { day: '2-digit', month: 'short' }), quote: e.quote ? { ...e.quote, status: 'Accepted' } : e.quote, invite: { status: 'Not invited' }, next: 'Book final survey', nextDue: 'Today' },
-      { kind: 'system', title: `Marked as Won${t ? ` · ${gbp(t.total)}` : ''}`, body: `Deposit invoice (${t?.depositPct ?? 50}%) sent from Xero. Next, a surveyor checks every size in a final survey before anything is ordered.`, who: ME });
-    toast('Won · next, book the final survey');
-    onDone?.('final'); onClose();
+    updEnq(e.id, x => ({ stage: 'Won', stageDays: 0, wonOn: fmtDate(TODAY, { day: '2-digit', month: 'short' }), quote: x.quote ? { ...x.quote, status: 'Accepted' } : x.quote, invite: x.invite || { status: 'Not invited' }, ops: { ...(x.ops || {}), deposit: { inv, amount: t?.deposit || 0, on: fmtDate(TODAY, { day: '2-digit', month: 'short' }) } }, next: 'Check documents and deposit', nextDue: 'Today' }),
+      { kind: 'system', title: `Marked as Won${t ? ` · ${gbp(t.total)}` : ''}`, body: `Quote ${e.quote?.ref || ''} accepted. Deposit ${t ? gbp(t.deposit) : ''} paid (${inv}, matched in Xero). Handed to the office.`, who: staffById(e.assigned)?.name || ME });
+    toast('Won · the office has been told');
+    onDone?.('overview'); onClose();
   };
   return (
-    <Modal title="Mark as Won" sub={`${e.name} · ${e.product}`} onClose={onClose} width={560} footer={<Foot onClose={onClose} onSave={save} label="Mark as Won" icon={<IconTrophy size={16} />} />}>
+    <Modal title="Mark as Won" sub={`${e.name} · ${e.product}`} onClose={onClose} width={580} footer={<Foot onClose={onClose} onSave={save} disabled={state !== 'paid'} label="Mark as Won" icon={<IconTrophy size={16} />} />}>
       <div className="hstack" style={{ gap: 14, padding: 14, background: 'var(--tint)', borderRadius: 12 }}>
         <IconTrophy size={30} color="#1f9d5b" />
-        <div className="vstack" style={{ gap: 3 }}><b style={{ fontSize: 15 }}>Great news — the customer said yes.</b><span className="small t2">{e.quote ? `Quote ${e.quote.ref} · ${gbp(t!.total)} · deposit ${gbp(t!.deposit)}` : 'No quote on file'}</span></div>
+        <div className="vstack" style={{ gap: 3 }}><b style={{ fontSize: 15 }}>The customer accepted the quote.</b><span className="small t2">{e.quote ? `Quote ${e.quote.ref} · ${gbp(t!.total)} inc. VAT` : 'No quote on file'}</span></div>
       </div>
-      <Check on label={`Send the ${t?.depositPct ?? 50}% deposit invoice from Xero${t ? ` (${gbp(t.deposit)})` : ''}`} />
-      <div className="alert info small"><IconInfoCircle size={16} />Next, book the <b>&nbsp;final survey</b>. A surveyor checks every size on site. Then the office invites the customer and places the order.</div>
+      <div className="card" style={{ padding: 14, gap: 10, background: 'var(--bg)' }}>
+        <span className="hstack" style={{ gap: 8 }}><span className="avatar" style={{ width: 26, height: 26, background: '#13b5ea', color: '#fff', fontSize: 11 }}>X</span><b style={{ fontSize: 13 }}>Deposit in Xero</b></span>
+        <div className="between small"><span className="t2">{inv} · {t?.depositPct ?? 50}% deposit</span><span className="hstack" style={{ gap: 8 }}><b>{t ? gbp(t.deposit) : '—'}</b>{state === 'paid' ? <Tag tone="ok">Paid · matched</Tag> : state === 'checking' ? <Tag tone="info">Checking…</Tag> : <Tag tone="warn">{sent ? 'Invoice sent · not paid yet' : 'Not paid yet'}</Tag>}</span></div>
+        {state !== 'paid' && <div className="hstack" style={{ gap: 8 }}>{!sent && <button className="btn btn-outline btn-sm" onClick={() => { setSent(true); toast(`Deposit invoice ${inv} sent to ${e.email}`); }}><IconSend size={14} />Send deposit invoice</button>}<button className="btn btn-dark btn-sm" disabled={state === 'checking'} onClick={check}>Check Xero for payment</button></div>}
+      </div>
+      {state !== 'paid' ? <div className="alert warn small"><IconAlertTriangle size={16} />You can mark it Won once the deposit shows as paid in Xero.</div>
+        : <div className="alert info small"><IconInfoCircle size={16} />When you save, the office is told. They check the documents and deposit, then book the final survey.</div>}
     </Modal>
   );
 }
@@ -727,13 +648,13 @@ export function OrderModal({ e, onClose, onDone }: P) {
     set('orders', os => [{ ref: soRef, job: jobId, customer: e.name, supplier, ordered: fmtDate(ordered, { day: '2-digit', month: 'short' }), confirmed: false, expected: fmtDate(expected, { day: '2-digit', month: 'short' }), frames: `0 of ${frames}`, status: 'Not confirmed', tone: 'warn', checks: 5, items, enquiry: e.id }, ...os]);
     set('deliveries', ds => [...ds, { time: '08:00', ref: soRef, customer: e.name, job: jobId, where: town(e.address), status: 'Not confirmed', tone: 'warn', day: fmtDate(expected), items: `${frames} frame${frames > 1 ? 's' : ''}`, photo: e.photo, problem: '' }]);
     set('events', es => [...es, { id: 'un' + Date.now(), team: 'un', date: installDate, days: 2, kind: 'install', title: `${first(e.name)} · needs installer`, sub: `${jobId} · not assigned yet`, photo: e.photo, job: jobId }]);
-    updEnq(e.id, { jobId, next: `Wait for ${supplier} to confirm`, nextDue: fmtDate(addDays(TODAY, 2)) },
+    updEnq(e.id, x => ({ jobId, ops: { ...(x.ops || {}), delivery: 'Pending' }, next: `Record ${supplier} confirmation`, nextDue: fmtDate(addDays(TODAY, 2)) }),
       { kind: 'system', title: `Order ${soRef} placed with ${supplier}`, body: `${items}. Delivery expected ${fmtDate(expected)} to ${deliverTo.toLowerCase()}. Job ${jobId} created and added to the installation diary (waiting for an installer).`, who: ME });
     toast(`Job ${jobId} created · order sent to ${supplier} · added to the diary`);
     onDone?.('order'); onClose();
   };
   return (
-    <Modal title="Create order & delivery" sub={`${e.name} · from quote ${e.quote?.ref || ''}`} onClose={onClose} width={720} footer={<Foot onClose={onClose} onSave={save} label="Place order" icon={<IconPackage size={16} />} />}>
+    <Modal title="Place the supplier order" sub={`${e.name} · from quote ${e.quote?.ref || ''}`} onClose={onClose} width={720} footer={<Foot onClose={onClose} onSave={save} label="Place order" icon={<IconPackage size={16} />} />}>
       <div className="vstack" style={{ gap: 8 }}>
         <b style={{ fontSize: 13 }}>Products to order</b>
         <div className="list" style={{ border: '1px solid var(--border)', borderRadius: 12, padding: '0 14px' }}>
@@ -761,20 +682,23 @@ export function VendorConfirmModal({ e, onClose, onDone }: P) {
   const o = orders.find(x => x.job === e.jobId)!;
   const [conf, setConf] = useState('EMP-' + (77100 + Math.floor(Math.random() * 90)));
   const [date, setDate] = useState(addDays(TODAY, 10));
+  const [tell, setTell] = useState(true);
   const save = () => {
     set('orders', os => os.map(x => (x.ref === o.ref ? { ...x, confirmed: true, status: 'Confirmed', tone: 'jade', expected: fmtDate(date, { day: '2-digit', month: 'short' }), confirmRef: conf } : x)));
     set('deliveries', ds => ds.map(x => (x.ref === o.ref ? { ...x, status: 'Confirmed', tone: 'jade', day: fmtDate(date) } : x)));
     updateJob(e.jobId!, { next: `Delivery ${fmtDate(date)}`, due: fmtDate(date) }, `${o.supplier} confirmed order ${o.ref} (${conf}) · delivery ${fmtDate(date)}`);
-    updEnq(e.id, { next: 'Delivery due', nextDue: fmtDate(date) }, { kind: 'note', title: `${o.supplier} confirmed the order`, body: `Confirmation ${conf}. Delivery on ${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })}.`, who: ME });
+    updEnq(e.id, x => ({ ops: { ...(x.ops || {}), delivery: 'Confirmed' }, next: `Delivery ${fmtDate(date)}`, nextDue: fmtDate(date) }), { kind: 'note', title: `${o.supplier} confirmed the order`, body: `Supplier reference ${conf}. Delivery on ${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })}. Order acknowledgement saved.${tell ? ' Customer told.' : ''}`, who: ME });
     toast(`Vendor confirmed · delivery ${fmtDate(date)}`);
     onDone?.('order'); onClose();
   };
   return (
-    <Modal title="Vendor confirmed the order" sub={`${o.ref} · ${o.supplier}`} onClose={onClose} width={520} footer={<Foot onClose={onClose} onSave={save} label="Save confirmation" icon={<IconCircleCheck size={16} />} />}>
+    <Modal title="Supplier confirmed the order" sub={`${o.ref} · ${o.supplier}`} onClose={onClose} width={560} footer={<Foot onClose={onClose} onSave={save} label="Save confirmation" icon={<IconCircleCheck size={16} />} />}>
       <div className="grid-2">
-        <Field label="Vendor confirmation number"><input className="input" value={conf} onChange={x => setConf(x.target.value)} /></Field>
+        <Field label="Supplier reference"><input className="input" value={conf} onChange={x => setConf(x.target.value)} /></Field>
         <Field label="Confirmed delivery date"><input type="date" className="input" value={date} onChange={x => setDate(x.target.value)} /></Field>
       </div>
+      <div className="hstack" style={{ gap: 10 }}><FileChip name={`${o.supplier} acknowledgement ${conf}.pdf`} sub="From the supplier's email" /></div>
+      <Check on={tell} onChange={setTell} label="Tell the customer the delivery date (email and portal)" />
     </Modal>
   );
 }
@@ -806,13 +730,13 @@ export function DeliveredModal({ e, onClose, onDone }: P) {
 }
 
 /* ---------- 12. Snag or aftercare ---------- */
-export function AddSnagModal({ e, onClose, onDone }: P) {
+export function AddSnagModal({ e, onClose, onDone, kindDefault }: P & { kindDefault?: 'Snag' | 'Aftercare' }) {
   const toast = useToast();
   const { set, jobs, updEnq, log, updateJob, events } = useStore();
   const j = jobs.find(x => x.id === e.jobId);
   const fit = events.find(x => x.job === e.jobId && x.kind === 'install' && x.team !== 'un');
   const after = fit ? addDays(fit.date, fit.days) : addDays(TODAY, 3);
-  const [kind, setKind] = useState<'Snag' | 'Aftercare'>('Snag');
+  const [kind, setKind] = useState<'Snag' | 'Aftercare'>(kindDefault || 'Snag');
   const [title, setTitle] = useState('');
   const [detail, setDetail] = useState('');
   const [sev, setSev] = useState('Minor');

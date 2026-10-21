@@ -92,10 +92,12 @@ export function AssignModal({ enquiryId, onClose }: { enquiryId: string; onClose
   const e = enquiries.find(x => x.id === enquiryId)!;
   const [pick, setPick] = useState(e.assigned || 'mh');
   const [follow, setFollow] = useState(addDays(TODAY, 1));
+  const [nextAct, setNextAct] = useState(e.stage === 'New Enquiry' ? 'Call the customer' : e.next);
+  const { updEnq } = useStore();
   const load: Record<string, string> = { mh: '4 open enquiries · works Leeds and Harrogate', ec: '6 open enquiries · works Ripon and Otley', jb: '3 open enquiries · on a visit until 2pm' };
   return (
     <Modal title={e.assigned ? 'Move to another salesperson' : 'Assign to a salesperson'} sub={`${e.name} · ${e.product} · ${e.postcode}`} onClose={onClose} width={560}
-      footer={<><button className="btn btn-grey" onClick={onClose}>Cancel</button><button className="btn btn-primary" onClick={() => { set('enquiries', es => es.map(x => (x.id === e.id ? { ...x, assigned: pick, followUp: follow, next: x.stage === 'New Enquiry' ? 'Contact customer' : x.next, nextDue: fmtDate(follow) } : x))); toast(`${staffById(pick)?.name} has it · follow-up ${fmtDate(follow)} · they’ll see it on their phone`); onClose(); }}>Assign</button></>}>
+      footer={<><button className="btn btn-grey" onClick={onClose}>Cancel</button><button className="btn btn-primary" onClick={() => { updEnq(e.id, { assigned: pick, followUp: follow, next: nextAct, nextDue: fmtDate(follow) }, { kind: 'system', title: `${e.assigned ? 'Moved' : 'Assigned'} to ${staffById(pick)?.name}`, body: `Next action: ${nextAct} by ${fmtDate(follow)}.`, who: 'Sarah Mitchell' }); toast(`${staffById(pick)?.name} has it · follow-up ${fmtDate(follow)} · they’ll see it on their phone`); onClose(); }}>Assign</button></>}>
       <div className="vstack" style={{ gap: 10 }}>
         {salespeople.map(s => (
           <button key={s.id} onClick={() => setPick(s.id)} className="card" style={{ flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12, borderColor: pick === s.id ? 'var(--primary)' : undefined, background: pick === s.id ? 'var(--tint-2)' : '#fff', textAlign: 'left' }}>
@@ -105,7 +107,10 @@ export function AssignModal({ enquiryId, onClose }: { enquiryId: string; onClose
           </button>
         ))}
       </div>
-      <Field label="First follow-up date" hint="The salesperson gets a reminder on this day. You’ll see it in the pipeline if it is missed."><input type="date" className="input" value={follow} onChange={x => setFollow(x.target.value)} /></Field>
+      <div className="grid-2">
+        <Field label="Next action"><select className="select" value={nextAct} onChange={x => setNextAct(x.target.value)}>{Array.from(new Set([nextAct, 'Call the customer', 'Email the customer', 'Send a brochure', 'Book appointment'])).map(x => <option key={x}>{x}</option>)}</select></Field>
+        <Field label="Due date" hint="They get a reminder. You see it if it is missed."><input type="date" className="input" value={follow} onChange={x => setFollow(x.target.value)} /></Field>
+      </div>
     </Modal>
   );
 }
@@ -177,15 +182,16 @@ export function BookInstallModal({ onClose, jobId, event, presetTeam, presetDate
   const [cancelAsk, setCancelAsk] = useState(false);
   const j = jobs.find(x => x.id === job)!;
   const hit = clash(team, start, days, event?.id);
-  const delivered = j.stage !== 'Ordered' && j.stage !== 'Survey' && !(j.blocked || '').toLowerCase().includes('deliver') && !(j.blocked || '').toLowerCase().includes('supplier');
+  const enq = enquiries.find(x => x.jobId === job);
+  const ov = enq?.ops?.override;
+  const delivered = enq?.ops ? !!enq.ops.received?.ok : j.stage !== 'Ordered' && j.stage !== 'Survey' && !(j.blocked || '').toLowerCase().includes('deliver') && !(j.blocked || '').toLowerCase().includes('supplier');
   const checks: [string, boolean][] = [['Survey approved', j.stage !== 'Survey'], ['Order delivered and checked', delivered], ['Deposit received (Xero)', j.deposit > 0 && j.paid >= j.deposit], ['No open delivery problem', !j.blocked]];
   const allReady = checks.every(c => c[1]);
-  const canBook = !hit && (allReady || reason.trim().length > 4);
+  const canBook = !hit && (allReady || !!ov || reason.trim().length > 4);
   const save = () => {
     if (mode === 'new') {
       set('events', es => [...es.filter(x => !(x.team === 'un' && x.job === j.id)), { id: 'ev' + Date.now(), team, date: start, days, kind: 'install', title: `${j.customer.split(' ')[0]} · ${j.products.split(' ')[0]}`, sub: `${j.id} · ${j.address.split(', ')[1] || ''}`, photo: j.photo, job: j.id }]);
       updateJob(j.id, { team, installDate: start, installDays: days, next: 'Installation', due: fmtDate(start) }, `Installation booked: ${teamById(team)?.name}, ${fmtDate(start)} for ${days} day${days > 1 ? 's' : ''}${allReady ? '' : ` · checks overridden — reason: ${reason}`}. Customer and installers told.`);
-      const enq = enquiries.find(x => x.jobId === j.id);
       if (enq) updEnq(enq.id, { next: 'Installation', nextDue: fmtDate(start) }, { kind: 'note', title: `Installation booked · ${teamById(team)?.name}`, body: `${fmtDate(start, { weekday: 'long', day: 'numeric', month: 'long' })} for ${days} day${days > 1 ? 's' : ''} (${teamById(team)?.members}). Customer and installers told.`, who: 'Sarah Mitchell' });
       toast(`Booked · ${teamById(team)?.name} · ${fmtDate(start)} · customer and installers told`);
     } else {
@@ -229,7 +235,8 @@ export function BookInstallModal({ onClose, jobId, event, presetTeam, presetDate
         <div className="card" style={{ padding: 14, gap: 10 }}>
           <div className="between"><b>Ready-to-book checks</b>{allReady ? <Tag tone="ok">All done</Tag> : <Tag tone="err">Something is missing</Tag>}</div>
           {checks.map(([l, ok]) => <span key={l} className="hstack small" style={{ gap: 8, color: ok ? 'var(--ok)' : 'var(--err)' }}>{ok ? <IconCircleCheck size={17} /> : <IconAlertTriangle size={17} />}<span style={{ color: ok ? 'var(--text)' : 'var(--err)', fontWeight: ok ? 400 : 600 }}>{l}</span></span>)}
-          {!allReady && <Field label="Reason to book anyway (required)" hint="Only use this if a manager agreed. The reason is saved in the job History."><input className="input" value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Director agreed — deposit arriving Monday" /></Field>}
+          {!allReady && ov && <div className="alert ok small"><IconCircleCheck size={16} /><div><b>Override approved by {ov.by}</b> on {ov.on}: {ov.reason}</div></div>}
+          {!allReady && !ov && <Field label="Reason to book anyway (required)" hint="Only use this if a manager agreed. The reason is saved in the job History."><input className="input" value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Director agreed — deposit arriving Monday" /></Field>}
         </div>
       )}
       {mode === 'change' && cancelAsk && <Field label="Reason for cancelling (optional)"><input className="input" value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Customer asked to move it" /></Field>}

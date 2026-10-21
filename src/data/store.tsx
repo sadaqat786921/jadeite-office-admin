@@ -1,9 +1,9 @@
 // Shared, in-memory state so every Office Admin flow updates the whole platform.
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
-const KEY = 'jadeite-office-admin-demo-v4';
+const KEY = 'jadeite-office-admin-demo-v5';
 import * as M from './mock';
-import { SEED, EXTRA_ENQUIRY, Lifecycle, Comm, seedValue } from './lifecycle';
+import { SEED, EXTRA_ENQUIRIES, Lifecycle, Comm, seedValue } from './lifecycle';
 
 export const TODAY = '2026-10-16';
 
@@ -29,6 +29,9 @@ const initialEvents: DiaryEvent[] = [
   { id: 'ev4', team: 't3', date: '2026-10-12', days: 1, kind: 'delivery', title: 'Workshop prep', sub: 'Glazing beads', photo: 'window' },
   { id: 'ev5', team: 't3', date: '2026-10-14', days: 2, kind: 'snag', title: 'Patel · snag visit', sub: 'JG-10471 · handle', photo: 'bifold', job: 'JG-10471' },
   { id: 'ev6', team: 't1', date: '2026-10-22', days: 2, kind: 'install', title: 'Smith · windows & door', sub: 'JG-10482 · Leicester', photo: 'house', job: 'JG-10482' },
+  { id: 'ev7', team: 't2', date: '2026-10-08', days: 2, kind: 'install', title: 'Patel · bi-folds', sub: 'JG-10471 · Oadby', photo: 'bifold', job: 'JG-10471' },
+  { id: 'ev8', team: 't1', date: '2026-09-29', days: 1, kind: 'install', title: 'Greens · front door', sub: 'JG-10433 · Ilkley', photo: 'door', job: 'JG-10433' },
+  { id: 'ev9', team: 't2', date: '2026-06-09', days: 2, kind: 'install', title: 'Cooper · windows', sub: 'JG-10398 · Ripon', photo: 'window', job: 'JG-10398' },
   { id: 'lv1', team: 't3', date: '2026-10-21', days: 3, kind: 'leave', title: 'Tom Wright on leave', sub: 'Annual leave', photo: 'window' },
 ];
 
@@ -56,7 +59,7 @@ const initialEmails: Email[] = [
   { id: 'em2', from: 'accounts@emplas.co.uk', subject: 'Remittance advice', preview: 'Please find attached the remittance for orders SO-481…', when: 'Yesterday 16:40' },
 ];
 
-const enq0: EnquiryX[] = [...M.enquiries, EXTRA_ENQUIRY].map(e => ({ ...e, ...(SEED[e.id] || {}), value: seedValue(e.id) ?? e.value, type: 'Sales', stageDays: Math.min(e.daysAgo, 9), followUp: e.assigned ? e.nextDue : undefined }));
+const enq0: EnquiryX[] = [...M.enquiries, ...EXTRA_ENQUIRIES].map(e => ({ ...e, ...(SEED[e.id] || {}), value: seedValue(e.id) ?? e.value, type: 'Sales', stageDays: Math.min(e.daysAgo, 9), followUp: e.assigned ? e.nextDue : undefined }));
 enq0.unshift({ id: 'EN-2292', name: 'Mrs Cooper', initials: 'JC', phone: '07700 900 990', email: 'j.cooper@email.co.uk', address: '5 Elm Close, Ripon', postcode: 'HG4 2BB', product: 'Window draught', source: 'Email', received: '16 Oct, 08:12', daysAgo: 0, stage: 'New Enquiry', value: 0, next: 'Route to aftercare', nextDue: 'Today', photo: 'window', type: 'Aftercare', stageDays: 0 });
 
 const jobs0: JobX[] = M.jobs.map(j => ({

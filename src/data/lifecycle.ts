@@ -35,9 +35,31 @@ export type Quote = {
 
 export type Invite = { status: 'Not invited' | 'Invited' | 'Active'; sentOn?: string };
 
+export type QuoteVersion = { ref: string; on: string; total: number; note: string };
+
+// Everything the office does after Won, step by step (see components/Journey.tsx).
+export type DeliveryStatus = 'Pending' | 'Confirmed' | 'In production' | 'In transit' | 'Delivered';
+export type Ops = {
+  deposit?: { inv: string; amount: number; on: string };   // 11 matched in Xero before Won
+  checked?: string;                                          // 12 documents and deposit verified
+  revision?: { from: string; to: string; on: string };      // quote revised after the final survey
+  ready?: string;                                            // contract & financial readiness
+  verified?: string;                                         // 13 order verification checklist
+  delivery?: DeliveryStatus;                                 // 14–15 supplier and delivery status
+  received?: { on: string; ok: boolean; issue?: string; photos: number }; // 16 delivery verification
+  override?: { by: string; reason: string; on: string };    // 18 audited readiness override
+  pack?: string;                                             // 19 job pack released, customer told
+  installerReviewed?: boolean;
+  work?: 'Started' | 'Submitted';                            // 20–21 installer progress
+  progress?: number;
+  completion?: { on: string; photos: number; signed: boolean; snags: number };
+  closed?: string;                                           // 23 project closed, guarantees published
+  paid?: string;                                             // 24 final balance reconciled in Xero
+};
+
 export type Lifecycle = {
   comms?: Comm[]; appt?: Appointment; survey?: Survey; quote?: Quote; lostReason?: string;
-  invite?: Invite; jobId?: string; wonOn?: string;
+  invite?: Invite; jobId?: string; wonOn?: string; ops?: Ops; versions?: QuoteVersion[];
   finalSurvey?: FinalSurvey; // after Won: the surveyor checks every measurement before ordering
 };
 
@@ -181,6 +203,7 @@ export const SEED: Record<string, Lifecycle> = {
     quote: quoteFrom('FP-55109', SMITH_OPS, '29 Sep', '29 Oct', 'Mike Harris', 'Accepted', 560, 'We are happy to go ahead.'),
     invite: { status: 'Active', sentOn: '30 Sep' }, jobId: 'JG-10482', wonOn: '30 Sep',
     finalSurvey: { surveyor: 'ps', date: '2026-10-02', time: '10:00 – 11:30', status: 'Done', doneOn: '02 Oct', signed: true, notes: 'All sizes confirmed.' },
+    ops: { deposit: { inv: 'INV-3381', amount: 0, on: '30 Sep' }, checked: '01 Oct', ready: '03 Oct', verified: '05 Oct', delivery: 'In transit', override: { by: 'Mike Jadeite (Director)', reason: 'Customers away from 24 Oct. Emplas confirmed delivery on 20 Oct, two days before fitting.', on: '13 Oct' } },
   },
   'EN-2282': {
     comms: [c('k3', 'email-in', 'Quote accepted', '04 Oct, 09:00', 'The Bakers'), c('k2', 'email-out', 'Your quote FP-55104', '01 Oct, 11:00', 'Emma Clarke'), c('k1', 'system', 'Enquiry taken in the showroom', '25 Sep, 13:20', 'Showroom')],
@@ -188,6 +211,7 @@ export const SEED: Record<string, Lifecycle> = {
     quote: quoteFrom('FP-55104', [{ ref: 'W1', room: 'Whole house', type: 'Casement window', w: 1100, h: 1100, qty: 8 }], '01 Oct', '31 Oct', 'Emma Clarke', 'Accepted'),
     invite: { status: 'Active', sentOn: '04 Oct' }, jobId: 'JG-10477', wonOn: '04 Oct',
     finalSurvey: { surveyor: 'rk', date: '2026-10-06', time: '09:00 – 10:00', status: 'Done', doneOn: '06 Oct', signed: true, notes: 'All sizes confirmed.' },
+    ops: { deposit: { inv: 'INV-3378', amount: 0, on: '04 Oct' }, checked: '05 Oct', ready: '06 Oct', verified: '07 Oct', delivery: 'Delivered', received: { on: '15 Oct', ok: true, photos: 6 } },
   },
   'EN-2279': {
     comms: [
@@ -202,6 +226,47 @@ export const SEED: Record<string, Lifecycle> = {
     survey: { surveyor: 'ps', date: '2026-10-11', time: '10:00 – 11:30', status: 'Completed', requestedBy: 'Mike Harris', openings: HUGHES_OPS, access: 'Front, scaffold not needed', parking: 'Street', notes: 'Victorian terrace — keep sash style.', photos: 11, signed: true, completedOn: '11 Oct' },
     quote: quoteFrom('FP-55126', HUGHES_OPS, '12 Oct', '11 Nov', 'Mike Harris', 'Accepted', 0, 'We would like to go ahead.'),
     invite: { status: 'Not invited' }, wonOn: '16 Oct',
+    ops: { deposit: { inv: 'INV-3401', amount: 0, on: '16 Oct' } },
+  },
+  'EN-2276': {
+    comms: [c('hd3', 'note', 'Installer started the job', '16 Oct, 08:20', 'Team 2', 'Day 1 of 3. Front elevation first.'), c('hd2', 'system', 'Job pack released', '13 Oct, 15:00', 'Sarah Mitchell'), c('hd1', 'system', 'Marked as Won', '18 Sep, 12:00', 'James Brook')],
+    survey: { surveyor: 'jb', date: '2026-08-25', time: '10:00', status: 'Completed', requestedBy: 'James Brook', openings: [{ ref: 'W1', room: 'Surgery rooms', type: 'Casement window', w: 1200, h: 1200, qty: 10 }], completedOn: '25 Aug' },
+    quote: quoteFrom('FP-55070', [{ ref: 'W1', room: 'Surgery rooms', type: 'Casement window', w: 1200, h: 1200, qty: 10 }], '27 Aug', '26 Sep', 'James Brook', 'Accepted'),
+    invite: { status: 'Active', sentOn: '19 Sep' }, jobId: 'JG-10493', wonOn: '18 Sep',
+    finalSurvey: { surveyor: 'rk', date: '2026-09-22', time: '09:00 – 10:30', status: 'Done', doneOn: '22 Sep', signed: true, notes: 'All sizes confirmed.' },
+    ops: { deposit: { inv: 'INV-3352', amount: 0, on: '18 Sep' }, checked: '19 Sep', ready: '23 Sep', verified: '24 Sep', delivery: 'Delivered', received: { on: '14 Oct', ok: true, photos: 8 }, pack: '13 Oct', installerReviewed: true, work: 'Started', progress: 30 },
+  },
+  'EN-2271': {
+    comms: [c('pt3', 'note', 'Completion submitted with 2 snags', '09 Oct, 17:10', 'Team 2', 'Signed by Mrs Patel. Scratch on the bi-fold frame and a stiff window handle.'), c('pt2', 'system', 'Installation booked', '01 Oct, 10:00', 'Sarah Mitchell'), c('pt1', 'system', 'Marked as Won', '20 Aug, 15:00', 'Mike Harris')],
+    survey: { surveyor: 'mh', date: '2026-08-10', time: '10:00', status: 'Completed', requestedBy: 'Mike Harris', openings: [{ ref: 'D1', room: 'Kitchen / garden', type: 'Bi-fold door (3-pane)', w: 3000, h: 2100, qty: 1 }, { ref: 'W1', room: 'Rear bedroom', type: 'Casement window', w: 1100, h: 1050, qty: 2 }], completedOn: '10 Aug' },
+    quote: quoteFrom('FP-55061', [{ ref: 'D1', room: 'Kitchen / garden', type: 'Bi-fold door (3-pane)', w: 3000, h: 2100, qty: 1 }, { ref: 'W1', room: 'Rear bedroom', type: 'Casement window', w: 1100, h: 1050, qty: 2 }], '12 Aug', '11 Sep', 'Mike Harris', 'Accepted'),
+    invite: { status: 'Active', sentOn: '21 Aug' }, jobId: 'JG-10471', wonOn: '20 Aug',
+    finalSurvey: { surveyor: 'ps', date: '2026-08-26', time: '10:00 – 11:30', status: 'Done', doneOn: '26 Aug', signed: true, notes: 'All sizes confirmed.' },
+    ops: { deposit: { inv: 'INV-3302', amount: 0, on: '20 Aug' }, checked: '21 Aug', ready: '27 Aug', verified: '28 Aug', delivery: 'Delivered', received: { on: '05 Oct', ok: true, photos: 5 }, pack: '06 Oct', installerReviewed: true, work: 'Submitted', progress: 100, completion: { on: '09 Oct', photos: 14, signed: true, snags: 2 } },
+  },
+  'EN-2268': {
+    comms: [c('kh3', 'note', 'Snag fixed', '13 Oct, 16:00', 'Team 2', 'Grey trim fitted. Photos added.'), c('kh2', 'note', 'Completion submitted with 1 snag', '14 Oct, 17:30', 'Team 2'), c('kh1', 'system', 'Marked as Won', '12 Aug, 10:00', 'Emma Clarke')],
+    survey: { surveyor: 'ec', date: '2026-08-02', time: '10:00', status: 'Completed', requestedBy: 'Emma Clarke', openings: [{ ref: 'R1', room: 'Orangery', type: 'Roof lantern', w: 2400, h: 1200, qty: 1 }], completedOn: '02 Aug' },
+    quote: quoteFrom('FP-55052', [{ ref: 'R1', room: 'Orangery', type: 'Roof lantern', w: 2400, h: 1200, qty: 1 }], '04 Aug', '03 Sep', 'Emma Clarke', 'Accepted'),
+    invite: { status: 'Active', sentOn: '13 Aug' }, jobId: 'JG-10455', wonOn: '12 Aug',
+    finalSurvey: { surveyor: 'rk', date: '2026-08-18', time: '09:00 – 10:00', status: 'Done', doneOn: '18 Aug', signed: true, notes: 'All sizes confirmed.' },
+    ops: { deposit: { inv: 'INV-3290', amount: 0, on: '12 Aug' }, checked: '13 Aug', ready: '19 Aug', verified: '20 Aug', delivery: 'Delivered', received: { on: '09 Oct', ok: true, photos: 4 }, pack: '09 Oct', installerReviewed: true, work: 'Submitted', progress: 100, completion: { on: '14 Oct', photos: 18, signed: true, snags: 1 }, paid: '14 Oct' },
+  },
+  'EN-2262': {
+    comms: [c('gr3', 'reminder', 'Balance reminder sent', '09 Oct, 09:00', 'Sarah Mitchell', 'Final invoice INV-3348 is overdue.'), c('gr2', 'system', 'Project closed · guarantee published', '30 Sep, 16:00', 'Sarah Mitchell'), c('gr1', 'system', 'Marked as Won', '20 Jul, 11:00', 'Emma Clarke')],
+    survey: { surveyor: 'ec', date: '2026-07-14', time: '10:00', status: 'Completed', requestedBy: 'Emma Clarke', openings: [{ ref: 'D1', room: 'Front entrance', type: 'Composite front door', w: 920, h: 2090, qty: 1 }], completedOn: '14 Jul' },
+    quote: quoteFrom('FP-55031', [{ ref: 'D1', room: 'Front entrance', type: 'Composite front door', w: 920, h: 2090, qty: 1 }], '16 Jul', '15 Aug', 'Emma Clarke', 'Accepted'),
+    invite: { status: 'Active', sentOn: '21 Jul' }, jobId: 'JG-10433', wonOn: '20 Jul',
+    finalSurvey: { surveyor: 'ps', date: '2026-07-24', time: '09:00 – 10:00', status: 'Done', doneOn: '24 Jul', signed: true, notes: 'All sizes confirmed.' },
+    ops: { deposit: { inv: 'INV-3255', amount: 0, on: '20 Jul' }, checked: '21 Jul', ready: '25 Jul', verified: '26 Jul', delivery: 'Delivered', received: { on: '26 Sep', ok: true, photos: 3 }, pack: '26 Sep', installerReviewed: true, work: 'Submitted', progress: 100, completion: { on: '29 Sep', photos: 9, signed: true, snags: 1 }, closed: '30 Sep' },
+  },
+  'EN-2240': {
+    comms: [c('jc2', 'system', 'Project closed and paid in full', '12 Jun, 10:00', 'Sarah Mitchell'), c('jc1', 'system', 'Marked as Won', '10 May, 10:00', 'Emma Clarke')],
+    survey: { surveyor: 'ec', date: '2026-05-05', time: '10:00', status: 'Completed', requestedBy: 'Emma Clarke', openings: [{ ref: 'W1', room: 'Front and back', type: 'Casement window', w: 1100, h: 1100, qty: 4 }], completedOn: '05 May' },
+    quote: quoteFrom('FP-54980', [{ ref: 'W1', room: 'Front and back', type: 'Casement window', w: 1100, h: 1100, qty: 4 }], '07 May', '06 Jun', 'Emma Clarke', 'Accepted'),
+    invite: { status: 'Active', sentOn: '11 May' }, jobId: 'JG-10398', wonOn: '10 May',
+    finalSurvey: { surveyor: 'rk', date: '2026-05-14', time: '09:00 – 10:00', status: 'Done', doneOn: '14 May', signed: true, notes: 'All sizes confirmed.' },
+    ops: { deposit: { inv: 'INV-3101', amount: 0, on: '10 May' }, checked: '11 May', ready: '15 May', verified: '15 May', delivery: 'Delivered', received: { on: '05 Jun', ok: true, photos: 4 }, pack: '06 Jun', installerReviewed: true, work: 'Submitted', progress: 100, completion: { on: '10 Jun', photos: 10, signed: true, snags: 0 }, closed: '11 Jun', paid: '12 Jun' },
   },
   'EN-2281': {
     comms: [c('o3', 'email-in', 'Re: Your quote FP-55101', '01 Oct, 10:00', 'Mrs Okafor', 'Thank you, but we have gone with a cheaper quote.'), c('o2', 'email-out', 'Your quote FP-55101', '24 Sep, 09:00', 'James Brook'), c('o1', 'system', 'Enquiry received from the website', '22 Sep, 09:45', 'Website')],
@@ -210,11 +275,23 @@ export const SEED: Record<string, Lifecycle> = {
 };
 
 // A Won enquiry still waiting for its order, so the office can try the full after-Won flow.
-export const EXTRA_ENQUIRY = {
+export const EXTRA_ENQUIRY_HUGHES = {
   id: 'EN-2279', name: 'Mrs Hughes', initials: 'AH', phone: '07700 900 611', email: 'a.hughes@email.co.uk', address: '9 Abbey Road, Knaresborough', postcode: 'HG5 8HY',
   product: 'Sash windows', source: 'Website', received: '07 Oct, 11:20', daysAgo: 9, assigned: 'mh', stage: 'Won' as const, value: 6400,
-  next: 'Book final survey', nextDue: 'Today', photo: 'window' as const,
+  next: 'Check documents and deposit', nextDue: 'Today', photo: 'window' as const,
 };
+
+// Won jobs further along, so every column of the Enquiries board has a real example.
+const won = (id: string, name: string, initials: string, phone: string, email: string, address: string, postcode: string, product: string, received: string, daysAgo: number, assigned: string, photo: 'house' | 'window' | 'door' | 'bifold' | 'orangery' | 'roof', next: string, nextDue: string) =>
+  ({ id, name, initials, phone, email, address, postcode, product, source: 'Website', received, daysAgo, assigned, stage: 'Won' as const, value: 0, next, nextDue, photo });
+export const EXTRA_ENQUIRIES = [
+  EXTRA_ENQUIRY_HUGHES,
+  won('EN-2276', 'Hartley Dental', 'HD', '0116 496 0222', 'practice@hartleydental.co.uk', '2 Market Place, Oadby', 'LE2 4AA', 'Windows (commercial)', '18 Aug, 10:00', 59, 'jb', 'house', 'Installer working · day 1 of 3', 'Today'),
+  won('EN-2271', 'Mrs Patel', 'RP', '07700 900 643', 'patel.r@email.co.uk', '7 Leeds Road, Oadby', 'LE2 5AA', 'Bi-fold doors + windows', '02 Aug, 14:30', 75, 'mh', 'bifold', 'Book return visit', 'Today'),
+  won('EN-2268', 'Mr Khan', 'MK', '07700 900 233', 'a.khan@email.co.uk', '41 York Road, Harrogate', 'HG1 2QL', 'Orangery roof', '28 Jul, 09:10', 80, 'ec', 'roof', 'Final review and close', 'Mon 19 Oct'),
+  won('EN-2262', 'The Greens', 'GR', '07700 900 412', 'greens@email.co.uk', '6 Mill Lane, Ilkley', 'LS29 8QJ', 'Front door', '10 Jul, 16:00', 98, 'ec', 'door', 'Chase final payment', 'Overdue'),
+  won('EN-2240', 'Mrs Cooper', 'JC', '07700 900 990', 'j.cooper@email.co.uk', '5 Elm Close, Ripon', 'HG4 2BB', 'Windows', '02 May, 11:00', 167, 'ec', 'window', 'In guarantee until Jun 2036', '—'),
+];
 
 // Everything surveyed is now done by the salesperson in Framepoint: turn the sample
 // measurements into Framepoint surveys and Framepoint quotes (prices inc. VAT).
@@ -222,7 +299,9 @@ for (const [id, l] of Object.entries(SEED)) {
   const sv = l.survey;
   if (sv && sv.status === 'Completed' && sv.openings && !sv.fp) {
     sv.fp = makeFpSurvey(sv.openings, sv.requestedBy, sv.completedOn || '', 'Framepoint', l.quote ? `2${l.quote.ref.slice(-2)}-1-v2` : undefined, sv.notes);
+    if (l.quote && l.comms) { const old = l.quote.ref, nw = sv.fp.ref; l.comms = l.comms.map(m => ({ ...m, title: m.title.split(old).join(nw), body: m.body?.split(old).join(nw) })); }
     if (l.quote) l.quote = { ...l.quote, ref: sv.fp.ref, fp: true, discount: 0, lines: linesFromFp(sv.fp.items), files: [sv.fp.quoteFile, sv.fp.file] };
+    if (l.quote) { const tot = fpTotals(sv.fp.items).total; l.versions = [{ ref: sv.fp.ref, on: l.quote.sentOn, total: tot, note: 'First quote' }]; if (l.ops?.deposit) l.ops.deposit.amount = Math.round(tot * 0.5); }
     if (l.finalSurvey && l.finalSurvey.status === 'Done') l.finalSurvey.checks = sv.fp.items.filter(i => !i.service).map(i => ({ no: i.no, name: i.name, sales: i.size || '', checked: i.size || '', ok: true }));
   }
 }
