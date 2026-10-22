@@ -28,21 +28,21 @@ export type JourneyCtx = { events: DiaryEvent[]; snags: Snag[] };
 
 // Columns of the Enquiries board (the whole journey). The Sales pipeline uses the first six plus Won and Lost.
 export const PHASES: { id: string; label: string; color: string }[] = [
-  { id: 'new', label: 'New enquiry', color: '#2f6fde' },
+  { id: 'new', label: 'New enquiry', color: '#00c7a1' },
   { id: 'qual', label: 'Qualification', color: '#0b6e5c' },
-  { id: 'appt', label: 'Appointment', color: '#2dd4bf' },
-  { id: 'prep', label: 'Quote preparation', color: '#e0a100' },
-  { id: 'sent', label: 'Quote sent & follow-up', color: '#2f6fde' },
-  { id: 'won', label: 'Won · pre-order checks', color: '#1f9d5b' },
-  { id: 'order', label: 'Ordered & in production', color: '#2f6fde' },
+  { id: 'appt', label: 'Appointment', color: '#00c7a1' },
+  { id: 'prep', label: 'Quote preparation', color: '#0b6e5c' },
+  { id: 'sent', label: 'Quote sent & follow-up', color: '#00c7a1' },
+  { id: 'won', label: 'Won · pre-order checks', color: '#0b6e5c' },
+  { id: 'order', label: 'Ordered & in production', color: '#00c7a1' },
   { id: 'ready', label: 'Delivered · ready to book', color: '#0b6e5c' },
   { id: 'install', label: 'Installation', color: '#00c7a1' },
   { id: 'review', label: 'Snags & final review', color: '#e0a100' },
-  { id: 'pay', label: 'Closed · final payment', color: '#2f6fde' },
-  { id: 'after', label: 'Aftercare', color: '#1f9d5b' },
+  { id: 'pay', label: 'Closed · final payment', color: '#0b6e5c' },
+  { id: 'after', label: 'Aftercare', color: '#00c7a1' },
   { id: 'lost', label: 'Lost', color: '#d64545' },
 ];
-export const roleTone: Record<Role, string> = { Office: 'warn', Sales: 'jade', Surveyor: 'info', Installer: 'info', Director: 'err' };
+export const roleTone: Record<Role, string> = { Office: 'warn', Sales: 'jade', Surveyor: 'grey', Installer: 'grey', Director: 'jade' };
 
 const I = (C: any) => <C size={16} />;
 const short = (d: string) => fmtDate(d, { day: '2-digit', month: 'short' });
@@ -542,7 +542,7 @@ export function CompletionModal({ e, onClose, onDone }: P) {
 export function ReturnVisitModal({ e, onClose, onDone }: P) {
   const toast = useToast();
   const { updEnq, set, snags } = useStore();
-  const after = e.ops?.paid;
+  const after = !!e.ops?.closed;
   const open = openSnags(e, snags as any, after ? 'Aftercare' : 'Snag').filter(x => x.status !== 'Visit booked');
   const [team, setTeam] = useState('t2');
   const [date, setDate] = useState(addDays(TODAY, 3));
@@ -569,7 +569,7 @@ export function ReturnVisitModal({ e, onClose, onDone }: P) {
 export function SnagFixedModal({ e, onClose, onDone }: P) {
   const toast = useToast();
   const { updEnq, set, snags, updateJob } = useStore();
-  const after = !!e.ops?.paid;
+  const after = !!e.ops?.closed;
   const open = openSnags(e, snags as any, after ? 'Aftercare' : 'Snag');
   const [photos, setPhotos] = useState(2);
   const [happy, setHappy] = useState(true);

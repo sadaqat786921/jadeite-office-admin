@@ -7,7 +7,7 @@ import { staffById, staff } from '../data/mock';
 import { useStore, TODAY, fmtDate, addDays } from '../data/store';
 
 const kindIcon: any = { 'Sales visit': IconCalendarEvent, Survey: IconClipboardCheck, 'Follow-up call': IconPhone, 'Snag visit': IconAlertTriangle };
-const kindColor: any = { 'Sales visit': '#0b6e5c', Survey: '#2f6fde', 'Follow-up call': '#e0a100', 'Snag visit': '#d64545' };
+const kindColor: any = { 'Sales visit': '#0b6e5c', Survey: '#0b6e5c', 'Follow-up call': '#e0a100', 'Snag visit': '#d64545' };
 
 export default function Appointments() {
   const toast = useToast();
@@ -28,7 +28,7 @@ export default function Appointments() {
         actions={<><button className="btn btn-grey" onClick={() => setModal('task')}><IconChecklist size={16} />Add task</button><button className="btn btn-outline" onClick={() => setModal('survey')}><IconClipboardCheck size={16} />Book survey</button><button className="btn btn-primary" onClick={() => setModal('appt')}><IconPlus size={16} />New appointment</button></>} />
       <div className={`alert ${notSynced ? 'warn' : 'ok'} small`}><IconBrandWindows size={16} />{notSynced ? `${notSynced} appointment is waiting to sync with Outlook.` : 'All appointments are in step with Outlook calendars.'}<button className="link ml-auto" onClick={() => { set('appts', as => as.map(a => ({ ...a, synced: true }))); toast('Synced with Outlook'); }}><IconRefresh size={14} />Sync now</button></div>
       <div className="grid-4">
-        {[['Sales visits this week', appts.filter(a => a.kind === 'Sales visit').length, IconCalendarEvent, '#0b6e5c'], ['Surveys booked', appts.filter(a => a.kind === 'Survey' && a.status === 'Booked').length, IconClipboardCheck, '#2f6fde'], ['Follow-up calls', appts.filter(a => a.kind === 'Follow-up call').length, IconPhone, '#e0a100'], ['Overdue', overdueAppts.length + lateTasks.length, IconAlertTriangle, '#d64545']].map(([l, v, I, c]: any) => (
+        {[['Sales visits this week', appts.filter(a => a.kind === 'Sales visit').length, IconCalendarEvent, '#0b6e5c'], ['Surveys booked', appts.filter(a => a.kind === 'Survey' && a.status === 'Booked').length, IconClipboardCheck, '#0b6e5c'], ['Follow-up calls', appts.filter(a => a.kind === 'Follow-up call').length, IconPhone, '#e0a100'], ['Overdue', overdueAppts.length + lateTasks.length, IconAlertTriangle, '#d64545']].map(([l, v, I, c]: any) => (
           <div key={l} className="card" style={{ flexDirection: 'row', gap: 14, alignItems: 'center', padding: 16 }}><Tile icon={<I size={22} />} color={c} size={48} /><div className="vstack" style={{ gap: 2 }}><span className="small t2">{l}</span><b style={{ fontSize: 22 }}>{v}</b></div></div>
         ))}
       </div>

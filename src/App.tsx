@@ -16,7 +16,6 @@ import { Orders, Deliveries } from './pages/Supply';
 import { Installations, Diary } from './pages/Installs';
 import { Snags, Aftercare } from './pages/Aftercare';
 import Messages from './pages/Messages';
-import Portal from './pages/Portal';
 import Payments from './pages/Payments';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
@@ -45,7 +44,7 @@ export default function App() {
         <Route path="/snags" element={<Snags />} />
         <Route path="/aftercare" element={<Aftercare />} />
         <Route path="/messages" element={<Messages />} />
-        <Route path="/portal" element={<Portal />} />
+        <Route path="/portal" element={<Navigate to="/" replace />} />
         <Route path="/payments" element={<Payments />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/settings" element={<Settings />} />

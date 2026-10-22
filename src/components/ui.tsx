@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { IconChevronDown, IconX, IconCheck, IconCircleCheck } from '@tabler/icons-react';
 
 export type Tone = 'ok' | 'warn' | 'err' | 'info' | 'jade' | 'grey';
-export const toneColor: Record<string, string> = { ok: '#1f9d5b', warn: '#e0a100', err: '#d64545', info: '#2f6fde', jade: '#0b6e5c', grey: '#3a4a4a' };
+export const toneColor: Record<string, string> = { ok: '#1f9d5b', warn: '#e0a100', err: '#d64545', info: '#0b6e5c', jade: '#0b6e5c', grey: '#3a4a4a' };
 
 export function Tag({ tone = 'jade', children, icon }: { tone?: Tone | string; children: React.ReactNode; icon?: React.ReactNode }) {
   return <span className={`tag ${tone}`}>{icon}{children}</span>;
@@ -159,7 +159,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastCtx.Provider value={setMsg}>
       {children}
-      {msg && <div className="toast"><IconCircleCheck size={18} color="#2dd4bf" />{msg}</div>}
+      {msg && <div className="toast"><IconCircleCheck size={18} color="#00c7a1" />{msg}</div>}
     </ToastCtx.Provider>
   );
 }

@@ -15,24 +15,35 @@ const typeTone: Record<string, string> = { Sales: 'jade', 'Existing job': 'info'
 
 export function RouteModal({ id, onClose }: { id: string; onClose: () => void }) {
   const toast = useToast();
-  const { enquiries, jobs, set, log } = useStore();
+  const { enquiries, set, updEnq } = useStore();
   const e = enquiries.find(x => x.id === id)!;
   const [to, setTo] = useState<'Existing job' | 'Aftercare'>(e.type === 'Sales' ? 'Aftercare' : (e.type as any));
-  // The customer's own jobs (matched by name, postcode or address) come first; everything else is a fallback.
-  const theirs = jobs.filter(j => j.customer === e.name || j.postcode === e.postcode || j.address === e.address);
-  const others = jobs.filter(j => !theirs.includes(j));
-  const [job, setJob] = useState((theirs[0] || jobs[0]).id);
+  // Jobs come from the won customer records. The customer's own jobs (same name, email, postcode or address) come first.
+  const jobs = enquiries.filter(x => x.jobId && x.id !== e.id);
+  const mine = (x: any) => x.name === e.name || (e.email && x.email === e.email) || x.postcode === e.postcode || x.address === e.address;
+  const theirs = jobs.filter(mine);
+  const others = jobs.filter(x => !mine(x));
+  const [job, setJob] = useState((theirs[0] || jobs[0])?.jobId || '');
+  const target = jobs.find(x => x.jobId === job);
+  const send = () => {
+    if (!target) return;
+    const msg = e.comms?.[0]?.body || 'Customer message';
+    set('enquiries', es => es.map(x => (x.id === id ? { ...x, type: to, routedTo: job, next: `Sent to ${to === 'Aftercare' ? 'aftercare' : 'job owner'}`, nextDue: 'Done' } : x)));
+    if (to === 'Aftercare') set('snags', ss => [{ id: 'SN-' + (130 + ss.length), job, kind: 'Aftercare', title: e.product && e.product !== 'Other' ? `${e.product} · customer reported problem` : 'Customer reported problem', detail: msg, customer: target.name, severity: 'Medium', status: 'Open', tone: 'err', owner: 'Aftercare team', reported: fmtDate(TODAY), photo: target.photo } as any, ...ss]);
+    updEnq(target.id, {}, { kind: 'email-in', title: `${to === 'Aftercare' ? 'Aftercare request' : 'Customer question'} received`, body: msg, who: e.name });
+    toast(`Sent to ${to === 'Aftercare' ? 'aftercare' : 'the job owner'} · saved on ${job}`); onClose();
+  };
   return (
     <Modal title="Send to the right person" sub={`${e.name} · this is not a new sale`} onClose={onClose} width={560}
-      footer={<><button className="btn btn-grey" onClick={onClose}>Cancel</button><button className="btn btn-primary" onClick={() => { set('enquiries', es => es.map(x => (x.id === id ? { ...x, type: to, routedTo: job, next: `Sent to ${to === 'Aftercare' ? 'aftercare' : 'job owner'}`, nextDue: 'Done' } : x))); log(job, `${to === 'Aftercare' ? 'Aftercare request' : 'Customer question'} from ${e.name} added to this job`); toast(`Sent to ${to === 'Aftercare' ? 'aftercare' : 'the job owner'} · saved on ${job}`); onClose(); }}>Send</button></>}>
+      footer={<><button className="btn btn-grey" onClick={onClose}>Cancel</button><button className="btn btn-primary" disabled={!target} onClick={send}>Send</button></>}>
       <Field label="What is it about?"><div className="hstack" style={{ gap: 8 }}>{(['Existing job', 'Aftercare'] as const).map(k => <button key={k} className={`chip ${to === k ? 'on' : ''}`} onClick={() => setTo(k)}>{k === 'Existing job' ? 'A current job' : 'Aftercare problem'}</button>)}</div></Field>
-      <Field label={`Which of ${e.name}’s jobs is this about?`} hint={theirs.length ? `We found ${theirs.length === 1 ? '1 job' : `${theirs.length} jobs`} for ${e.name} at ${e.address}.` : `No jobs found for ${e.name} — pick the right one from all jobs.`}>
+      <Field label={`Which of ${e.name}’s jobs is this about?`} hint={theirs.length ? `We found ${theirs.length === 1 ? '1 job' : `${theirs.length} jobs`} for ${e.name}.` : `No jobs found for ${e.name} — pick the right one from all jobs.`}>
         <select className="select" value={job} onChange={x => setJob(x.target.value)}>
-          {theirs.length > 0 && <optgroup label={`${e.name}’s jobs`}>{theirs.map(j => <option key={j.id} value={j.id}>{j.id} · {j.products} · {j.stage === 'Complete' ? 'Fitted, in guarantee' : j.stage}</option>)}</optgroup>}
-          <optgroup label={theirs.length ? 'Other customers’ jobs' : 'All jobs'}>{others.map(j => <option key={j.id} value={j.id}>{j.id} · {j.customer} · {j.address}</option>)}</optgroup>
+          {theirs.length > 0 && <optgroup label={`${e.name}’s jobs`}>{theirs.map(j => <option key={j.id} value={j.jobId}>{j.jobId} · {j.product} · {j.ops?.closed ? 'Fitted, in guarantee' : 'In progress'}</option>)}</optgroup>}
+          <optgroup label={theirs.length ? 'Other customers’ jobs' : 'All jobs'}>{others.map(j => <option key={j.id} value={j.jobId}>{j.jobId} · {j.name} · {j.address}</option>)}</optgroup>
         </select>
       </Field>
-      <div className="alert info small"><IconArrowsSplit size={16} />The message stays on the customer’s record. It does not go to Sales.</div>
+      <div className="alert info small"><IconArrowsSplit size={16} />{to === 'Aftercare' ? 'An aftercare request is opened on that job.' : 'The message is added to that job.'} It does not go to Sales.</div>
     </Modal>
   );
 }
@@ -66,7 +77,7 @@ export function Enquiries() {
         actions={<><Seg value={view} onChange={setView} items={[{ id: 'board', label: 'Board', icon: <IconLayoutKanban size={15} /> }, { id: 'list', label: 'List', icon: <IconListDetails size={15} /> }]} /><button className="btn btn-grey"><IconDownload size={16} />Export</button><button className="btn btn-primary" onClick={() => setModal('new')}><IconPlus size={16} />New enquiry</button></>} />
       <div className="alert info small"><IconInbox size={16} /><div>Every customer, from the first enquiry to aftercare. Cards marked <b>Your turn</b> need the office. Everyone else’s step shows who has it, with a reminder button if it goes quiet.</div></div>
       <div className="grid-4">
-        {[['Your turn', String(yours.length), IconUserCheck, '#e0a100', 'Office tasks waiting', 'Your turn'], ['New, not yet handled', String(count('new')), IconInbox, '#2f6fde', 'Assign or route each one', 'new'], ['Follow-ups overdue', String(overdue), IconAlertTriangle, '#d64545', overdue ? 'Chase them up' : 'All on time', 'All'], ['In progress after Won', String(enquiries.filter(e => e.stage === 'Won' && steps[e.id].phase !== 'after').length), IconTrophy, '#1f9d5b', 'Orders, fitting and closing', 'won']].map(([l, v, I, c, sub, f]: any) => (
+        {[['Your turn', String(yours.length), IconUserCheck, '#e0a100', 'Office tasks waiting', 'Your turn'], ['New, not yet handled', String(count('new')), IconInbox, '#0b6e5c', 'Assign or route each one', 'new'], ['Follow-ups overdue', String(overdue), IconAlertTriangle, '#d64545', overdue ? 'Chase them up' : 'All on time', 'All'], ['In progress after Won', String(enquiries.filter(e => e.stage === 'Won' && steps[e.id].phase !== 'after').length), IconTrophy, '#1f9d5b', 'Orders, fitting and closing', 'won']].map(([l, v, I, c, sub, f]: any) => (
           <button key={l} className="card" style={{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, textAlign: 'left', cursor: 'pointer' }} onClick={() => { if (f === 'Your turn') { setMineOnly(true); setStage('Your turn'); } else { setStage(f); setView('list'); } }}>
             <Tile icon={<I size={22} />} color={c} size={48} />
             <div className="vstack" style={{ gap: 2 }}><span className="small t2">{l}</span><b style={{ fontSize: 22 }}>{v}</b><span className="tiny muted">{sub}</span></div>

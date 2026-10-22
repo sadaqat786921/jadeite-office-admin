@@ -9,31 +9,37 @@ const initialsOf = (n: string) => n.replace(/^(Mr|Mrs|Ms|Dr|Miss)\.?\s+/i, '').s
 /* ------------------------------------------------------------------ */
 /* Step 4–8: a new enquiry arrives → route → customer → salesperson     */
 /* ------------------------------------------------------------------ */
-export function NewEnquiryModal({ onClose }: { onClose: () => void }) {
+export function NewEnquiryModal({ onClose, preset }: { onClose: () => void; preset?: { name: string; phone: string; email: string; address: string; postcode: string } }) {
   const toast = useToast();
   const { set, enquiries, jobs, log } = useStore();
   const [type, setType] = useState<'Sales' | 'Existing job' | 'Aftercare'>('Sales');
   const [product, setProduct] = useState<string[]>(['Windows']);
-  const [name, setName] = useState('');
-  const [postcode, setPostcode] = useState('');
-  const [phone, setPhone] = useState('');
+  const [name, setName] = useState(preset?.name || '');
+  const [postcode, setPostcode] = useState(preset?.postcode || '');
+  const [phone, setPhone] = useState(preset?.phone || '');
+  const [email, setEmail] = useState(preset?.email || '');
+  const [address, setAddress] = useState(preset?.address || '');
   const [source, setSource] = useState('Website');
   const [sales, setSales] = useState('');
   const [follow, setFollow] = useState(addDays(TODAY, 1));
   const [job, setJob] = useState(jobs[0].id);
-  const [linked, setLinked] = useState(false);
+  const [linked, setLinked] = useState(!!preset?.name);
   const dup = postcode.trim().length >= 3 ? enquiries.find(e => e.postcode.replace(/\s/g, '').toUpperCase().startsWith(postcode.replace(/\s/g, '').toUpperCase())) : undefined;
   const toggle = (p: string) => setProduct(ps => (ps.includes(p) ? ps.filter(x => x !== p) : [...ps, p]));
   const save = () => {
     if (type !== 'Sales') {
       const j = jobs.find(x => x.id === job)!;
-      log(j.id, `${type === 'Aftercare' ? 'Aftercare request' : 'Customer question'} logged by the office and sent to ${type === 'Aftercare' ? 'aftercare' : j.owner}`);
+      const rec = enquiries.find(x => x.jobId === j.id);
+      const msg = `${type === 'Aftercare' ? 'Aftercare request' : 'Customer question'} logged by the office`;
+      if (type === 'Aftercare') set('snags', ss => [{ id: 'SN-' + (130 + ss.length), job: j.id, kind: 'Aftercare', title: 'Customer reported problem', detail: 'Logged by the office from a phone call or email.', customer: rec?.name || j.customer, severity: 'Medium', status: 'Open', tone: 'err', owner: 'Aftercare team', reported: 'Office · ' + fmtDate(TODAY), photo: rec?.photo || j.photo } as any, ...ss]);
+      if (rec) set('enquiries', es => es.map(x => (x.id === rec.id ? { ...x, comms: [{ id: 'c' + Date.now(), kind: 'note', title: msg, when: fmtDate(TODAY) + ', ' + new Date().toTimeString().slice(0, 5), who: 'Sarah Mitchell' }, ...(x.comms || [])] } : x)));
+      log(j.id, `${msg} and sent to ${type === 'Aftercare' ? 'aftercare' : j.owner}`);
       toast(`Sent to ${type === 'Aftercare' ? 'aftercare' : 'the job owner'} · saved on ${j.id}`);
       return onClose();
     }
     if (!name.trim()) return toast('Please add the customer’s name');
     const id = 'EN-' + (2300 + enquiries.length);
-    set('enquiries', es => [{ id, name: name.trim(), initials: initialsOf(name), phone: phone || '—', email: '—', address: '—', postcode: postcode.toUpperCase() || '—', product: product.join(', ') || 'Not known', source, received: 'Just now', daysAgo: 0, assigned: sales || undefined, stage: 'New Enquiry', value: 0, next: sales ? 'First call' : 'Assign to sales', nextDue: sales ? fmtDate(follow) : 'Today', photo: 'house', type: 'Sales', stageDays: 0, followUp: sales ? follow : undefined, hot: true }, ...es]);
+    set('enquiries', es => [{ id, name: name.trim(), initials: initialsOf(name), phone: phone || '—', email: email || '—', address: address || '—', postcode: postcode.toUpperCase() || '—', product: product.join(', ') || 'Not known', source, received: 'Just now', daysAgo: 0, assigned: sales || undefined, stage: 'New Enquiry', value: 0, next: sales ? 'First call' : 'Assign to sales', nextDue: sales ? fmtDate(follow) : 'Today', photo: 'house', type: 'Sales', stageDays: 0, followUp: sales ? follow : undefined, hot: true }, ...es]);
     toast(sales ? `Enquiry added and assigned to ${staffById(sales)?.name} · follow-up ${fmtDate(follow)}` : 'Enquiry added · waiting to be assigned');
     onClose();
   };
@@ -62,12 +68,12 @@ export function NewEnquiryModal({ onClose }: { onClose: () => void }) {
           <div className="grid-2">
             <Field label="Customer name"><input className="input" placeholder="e.g. Mr & Mrs Patel" value={name} onChange={e => setName(e.target.value)} /></Field>
             <Field label="Phone"><input className="input" placeholder="07700 900 000" value={phone} onChange={e => setPhone(e.target.value)} /></Field>
-            <Field label="Email"><input className="input" placeholder="name@email.co.uk" /></Field>
+            <Field label="Email"><input className="input" placeholder="name@email.co.uk" value={email} onChange={e => setEmail(e.target.value)} /></Field>
             <Field label="Postcode" hint="We look for an existing customer as you type."><input className="input" placeholder="LS6 2AB" value={postcode} onChange={e => { setPostcode(e.target.value); setLinked(false); }} /></Field>
           </div>
-          <Field label="Property address"><input className="input" placeholder="House number and street, town" /></Field>
+          <Field label="Property address"><input className="input" placeholder="House number and street, town" value={address} onChange={e => setAddress(e.target.value)} /></Field>
           {dup && !linked && (
-            <div className="alert warn"><IconAlertTriangle size={18} /><div style={{ flex: 1 }}><b>This may be an existing customer:</b> {dup.name}, {dup.address} {dup.postcode}.</div><button className="btn btn-dark btn-xs" onClick={() => { setLinked(true); setName(dup.name); setPhone(dup.phone); }}>Use this customer</button></div>
+            <div className="alert warn"><IconAlertTriangle size={18} /><div style={{ flex: 1 }}><b>This may be an existing customer:</b> {dup.name}, {dup.address} {dup.postcode}.</div><button className="btn btn-dark btn-xs" onClick={() => { setLinked(true); setName(dup.name); setPhone(dup.phone); setEmail(dup.email); setAddress(dup.address); }}>Use this customer</button></div>
           )}
           {linked && <div className="alert ok small"><IconCircleCheck size={16} />Linked to the existing customer — no duplicate record will be made. One customer can have many projects.</div>}
           <Field label="Interested in">

@@ -55,6 +55,7 @@ export type Ops = {
   completion?: { on: string; photos: number; signed: boolean; snags: number };
   closed?: string;                                           // 23 project closed, guarantees published
   paid?: string;                                             // 24 final balance reconciled in Xero
+  stagePaid?: string;                                        // 40% stage payment received
 };
 
 export type Lifecycle = {

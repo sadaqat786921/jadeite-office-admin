@@ -70,11 +70,11 @@ export function Login() {
 
 const STEPS = [
   { photo: IMG.bifold, t: 'Your whole day at a glance', d: 'Your dashboard shows what needs you today — new enquiries, surveys, deliveries and installations.',
-    pts: [[IconInbox, 'New enquiries first', 'See who is waiting and pass them to sales.', '#2f6fde'], [IconCalendar, 'Today’s diary', 'Surveys, deliveries and fittings with times.', '#0b6e5c'], [IconAlertTriangle, 'Problems flagged', 'Late deliveries and snags shown in red.', '#d64545']] },
+    pts: [[IconInbox, 'New enquiries first', 'See who is waiting and pass them to sales.', '#0b6e5c'], [IconCalendar, 'Today’s diary', 'Surveys, deliveries and fittings with times.', '#0b6e5c'], [IconAlertTriangle, 'Problems flagged', 'Late deliveries and snags shown in red.', '#d64545']] },
   { photo: IMG.door, t: 'Every job, from enquiry to fitting', d: 'Open any job to see the customer, their windows and doors, key dates, payments and the next step.',
-    pts: [[IconBox, 'One page per job', 'Survey, quote, order, delivery and fitting together.', '#0b6e5c'], [IconUsers, 'Who is on the job', 'Salesperson, surveyor and installer team.', '#2f6fde'], [IconCurrencyPound, 'Payments from Xero', 'Deposit, balance and invoices — no re-typing.', '#e0a100']] },
+    pts: [[IconBox, 'One page per job', 'Survey, quote, order, delivery and fitting together.', '#0b6e5c'], [IconUsers, 'Who is on the job', 'Salesperson, surveyor and installer team.', '#0b6e5c'], [IconCurrencyPound, 'Payments from Xero', 'Deposit, balance and invoices — no re-typing.', '#e0a100']] },
   { photo: IMG.orangery, t: 'Customers can follow their job', d: 'Customers see their own dates, documents and messages in their portal, so they call the office less.',
-    pts: [[IconHome, 'Their own portal', 'Only their job — never internal notes.', '#0b6e5c'], [IconMessage, 'Messages kept on file', 'Every message saved against the job.', '#2f6fde'], [IconShieldCheck, 'Guarantees and care guides', 'Ready to download after the fitting.', '#1f9d5b']] },
+    pts: [[IconHome, 'Their own portal', 'Only their job — never internal notes.', '#0b6e5c'], [IconMessage, 'Messages kept on file', 'Every message saved against the job.', '#0b6e5c'], [IconShieldCheck, 'Guarantees and care guides', 'Ready to download after the fitting.', '#1f9d5b']] },
 ];
 
 export function Welcome() {

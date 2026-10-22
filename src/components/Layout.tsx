@@ -8,10 +8,13 @@ import {
 import { me, notifications, IMG } from '../data/mock';
 import { useStore } from '../data/store';
 import { Avatar, Tile, toneColor } from './ui';
+import { useRows } from './derive';
+import { needsOffice } from './Journey';
+import { needsReply } from '../pages/Messages';
 
 type NavDef = { to: string; label: string; icon: any; count?: number; chev?: boolean; end?: boolean };
 const NAV: { section: string; items: NavDef[] }[] = [
-  { section: 'Main', items: [{ to: '/', label: 'Dashboard', icon: IconLayoutDashboard, chev: true, end: true }, { to: '/enquiries', label: 'Enquiries', icon: IconInbox, count: 6 }] },
+  { section: 'Main', items: [{ to: '/', label: 'Dashboard', icon: IconLayoutDashboard, chev: true, end: true }, { to: '/enquiries', label: 'Enquiries', icon: IconInbox }] },
   { section: 'Sales', items: [{ to: '/pipeline', label: 'Sales pipeline', icon: IconFilter, chev: true }, { to: '/appointments', label: 'Appointments', icon: IconCalendarCheck }, { to: '/customers', label: 'Customers', icon: IconUsers, chev: true }, { to: '/quotes', label: 'Quotes (Framepoint)', icon: IconFileText }] },
   { section: 'Operations', items: [
     { to: '/jobs', label: 'Jobs', icon: IconBriefcase, chev: true }, { to: '/surveys', label: 'Surveys', icon: IconClipboardCheck, chev: true },
@@ -19,14 +22,22 @@ const NAV: { section: string; items: NavDef[] }[] = [
     { to: '/installations', label: 'Installations', icon: IconTool, chev: true }, { to: '/diary', label: 'Installation diary', icon: IconCalendarEvent },
   ] },
   { section: 'Aftercare', items: [{ to: '/snags', label: 'Snags', icon: IconAlertTriangle }, { to: '/aftercare', label: 'Aftercare', icon: IconShieldCheck }] },
-  { section: 'Communicate', items: [{ to: '/messages', label: 'Messages', icon: IconMessage, count: 3 }, { to: '/portal', label: 'Customer portal', icon: IconWorld }] },
-  { section: 'Finance', items: [{ to: '/payments', label: 'Payments (Xero)', icon: IconCurrencyPound, chev: true }] },
+  { section: 'Communicate', items: [{ to: '/messages', label: 'Messages', icon: IconMessage }] },
+  { section: 'Finance', items: [{ to: '/payments', label: 'Payments', icon: IconCurrencyPound, chev: true }] },
   { section: 'Reports', items: [{ to: '/reports', label: 'Reports', icon: IconChartBar }] },
 ];
 
 export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const st = useStore();
-  const live: Record<string, number> = { '/enquiries': st.enquiries.filter(e => e.stage === 'New Enquiry').length, '/messages': 3 + st.emails.filter(e => !e.linked).length, '/appointments': st.tasks.filter(t => !t.done && t.due <= '2026-10-16').length };
+  const rows = useRows();
+  const yours = rows.filter(r => needsOffice(r.st)).length;
+  const live: Record<string, number> = {
+    '/enquiries': yours,
+    '/messages': st.enquiries.filter(needsReply).length + st.emails.filter(e => !e.linked).length,
+    '/appointments': st.tasks.filter(t => !t.done && t.due <= '2026-10-16').length,
+    '/snags': st.snags.filter(x => (x.kind || 'Snag') === 'Snag' && x.status === 'Open').length,
+    '/aftercare': st.enquiries.filter(e => e.type === 'Aftercare' && !e.routedTo).length + st.snags.filter(x => x.kind === 'Aftercare' && x.status === 'Open').length,
+  };
   return (
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
       <div className="brand">
@@ -57,9 +68,9 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
       <div className="promo">
         <img src={IMG.orangery} alt="" style={{ objectPosition: 'center 35%' }} />
         <div>
-          <b>Customer portal is live</b>
-          <p>Customers can follow their job, dates and documents.</p>
-          <Link to="/portal">Send invites <IconArrowRight size={13} /></Link>
+          <b>{yours} jobs need you</b>
+          <p>Customers waiting for the office to do the next step.</p>
+          <Link to="/enquiries">Open my list <IconArrowRight size={13} /></Link>
         </div>
       </div>
     </aside>

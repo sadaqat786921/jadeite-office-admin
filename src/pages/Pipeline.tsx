@@ -10,7 +10,7 @@ import { useStore } from '../data/store';
 import { stepFor, JourneyCard, ActionModal, roleTone, remindText } from '../components/Journey';
 import { stageTone } from './Enquiries';
 
-const colColor: Record<string, string> = { 'New Enquiry': '#2f6fde', Qualification: '#0b6e5c', Appointment: '#2dd4bf', 'Quote Preparation': '#e0a100', 'Quote Sent': '#2f6fde', 'Follow-up': '#e0a100', Won: '#1f9d5b', Lost: '#d64545' };
+const colColor: Record<string, string> = { 'New Enquiry': '#0b6e5c', Qualification: '#0b6e5c', Appointment: '#00c7a1', 'Quote Preparation': '#e0a100', 'Quote Sent': '#0b6e5c', 'Follow-up': '#e0a100', Won: '#1f9d5b', Lost: '#d64545' };
 const colLabel: Record<string, string> = { 'New Enquiry': 'New enquiry', 'Quote Preparation': 'Quote preparation', 'Quote Sent': 'Quote sent' };
 
 export default function Pipeline() {

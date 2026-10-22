@@ -11,7 +11,7 @@ export default function Reports() {
       <PageHead title="Reports" crumbs={[{ label: 'Dashboard', to: '/' }, { label: 'Reports' }]} actions={<><Dd>Last 8 months</Dd><button className="btn btn-grey"><IconPrinter size={16} />Print</button><button className="btn btn-primary"><IconDownload size={16} />Download</button></>} />
       <Tabs value={tab} onChange={setTab} items={[{ id: 'sales', label: 'Sales' }, { id: 'jobs', label: 'Jobs and diary' }, { id: 'team', label: 'Team performance' }]} />
       <div className="grid-4">
-        {[['Enquiries', '312', IconTrendingUp, '#2f6fde', '+9% on last year'], ['Win rate', '62%', IconCircleCheck, '#1f9d5b', 'Quotes that became jobs'], ['Days from enquiry to fitting', '33', IconClock, '#e0a100', 'Average'], ['Jobs finished', '141', IconTool, '#0b6e5c', 'This year']].map(([l, v, I, c, s]: any) => (
+        {[['Enquiries', '312', IconTrendingUp, '#0b6e5c', '+9% on last year'], ['Win rate', '62%', IconCircleCheck, '#1f9d5b', 'Quotes that became jobs'], ['Days from enquiry to fitting', '33', IconClock, '#e0a100', 'Average'], ['Jobs finished', '141', IconTool, '#0b6e5c', 'This year']].map(([l, v, I, c, s]: any) => (
           <div key={l} className="card" style={{ flexDirection: 'row', gap: 14, alignItems: 'center', padding: 16 }}><Tile icon={<I size={22} />} color={c} size={48} /><div className="vstack" style={{ gap: 2 }}><span className="small t2">{l}</span><b style={{ fontSize: 22 }}>{v}</b><span className="tiny muted">{s}</span></div></div>
         ))}
       </div>

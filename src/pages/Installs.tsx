@@ -1,88 +1,86 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { IconCalendarPlus, IconChevronLeft, IconChevronRight, IconCircleCheck, IconCircleX, IconAlertTriangle, IconTool, IconCalendar, IconClock, IconGripVertical, IconBeach, IconInfoCircle } from '@tabler/icons-react';
-import { PageHead, Card, CardHead, Tag, Seg, Tile, Modal, Field, useToast } from '../components/ui';
+import { PageHead, Card, CardHead, Tag, Seg, Tile, Modal, Field, useToast, Progress } from '../components/ui';
+import { ActionModal, installOf } from '../components/Journey';
+import { useRows, products, Row } from '../components/derive';
 import { BookInstallModal } from '../components/Forms';
 import { teams, IMG, teamById } from '../data/mock';
-import { useStore, TODAY, addDays, fmtDate, mondayOf, dayDiff, JobX, DiaryEvent } from '../data/store';
-
-function readiness(j: JobX, events: DiaryEvent[]) {
-  const checks: [string, boolean][] = [
-    ['Survey approved', j.stage !== 'Survey' && j.stage !== 'Quote'],
-    ['Order delivered', j.stage === 'Delivery' && !j.blocked],
-    ['Deposit paid', j.deposit > 0 && j.paid >= j.deposit],
-  ];
-  const booked = events.some(e => e.job === j.id && e.kind === 'install' && e.team !== 'un' && e.date >= TODAY);
-  return { checks, ready: checks.every(c => c[1]), booked };
-}
+import { useStore, TODAY, addDays, fmtDate, mondayOf, dayDiff, EnquiryX } from '../data/store';
 
 export function useBookingLists() {
-  const { jobs, events } = useStore();
-  const candidates = jobs.filter(j => ['Ordered', 'Delivery'].includes(j.stage));
-  const rows = candidates.map(j => ({ j, ...readiness(j, events) })).filter(r => !r.booked);
-  return { ready: rows.filter(r => r.ready), notReady: rows.filter(r => !r.ready) };
+  const rows = useRows();
+  const { events } = useStore();
+  const asJob = (r: Row) => ({ id: r.e.jobId!, customer: r.e.name, photo: r.e.photo, products: products(r.e) });
+  const ready = rows.filter(r => r.st.key === 'book' || (r.e.jobId && r.e.ops?.override && !installOf(r.e, events))).map(r => ({ r, j: asJob(r), checks: [['Delivered and checked', !!r.e.ops?.received?.ok], ['Deposit paid', !!r.e.ops?.deposit]] as [string, boolean][] }));
+  const notReady = rows.filter(r => r.st.phase === 'order' || ['receive', 'issue'].includes(r.st.key)).filter(r => !ready.some(x => x.r.e.id === r.e.id)).map(r => ({ r, j: asJob(r), checks: [['Delivered and checked', false], ['Deposit paid', !!r.e.ops?.deposit]] as [string, boolean][] }));
+  return { ready, notReady };
 }
 
 export function Installations() {
-  const { events, jobs } = useStore();
-  const [modal, setModal] = useState<string | null>(null);
+  const rows = useRows();
+  const { events } = useStore();
+  const [act, setAct] = useState<{ k: string; e: EnquiryX } | null>(null);
+  const [any, setAny] = useState(false);
   const { ready, notReady } = useBookingLists();
-  const upcoming = events.filter(e => e.kind === 'install' && e.team !== 'un' && e.date >= addDays(TODAY, -6)).sort((a, b) => a.date.localeCompare(b.date));
+  const booked = rows.filter(r => r.st.phase === 'install' && !r.e.ops?.work);
+  const onSite = rows.filter(r => r.e.ops?.work === 'Started');
+  const finished = rows.filter(r => r.st.phase === 'review');
+  const Btn = ({ r }: { r: Row }) => <button className={`btn ${r.st.wait ? 'btn-outline' : 'btn-primary'} btn-sm`} onClick={() => setAct({ k: r.st.key, e: r.e })}>{r.st.icon}{r.st.label}</button>;
+  const Line = ({ r, extra, children }: { r: Row; extra?: React.ReactNode; children?: React.ReactNode }) => (
+    <div className="hstack" style={{ gap: 12, padding: '12px 0', borderTop: '1px solid var(--border)', flexWrap: 'wrap' }}>
+      <img src={IMG[r.e.photo]} alt="" style={{ width: 46, height: 46, borderRadius: 10, objectFit: 'cover' }} />
+      <div className="vstack" style={{ gap: 3, flex: 1, minWidth: 200 }}><Link to={`/jobs/${r.e.jobId || r.e.id}`} className="b">{r.e.name} <span className="tiny muted">· {r.e.jobId}</span></Link><span className="tiny muted">{products(r.e)} · {r.e.address}</span>{extra}</div>
+      {children}
+    </div>
+  );
+  const fitText = (r: Row) => { const f = installOf(r.e, events); return f ? `${fmtDate(f.date)}${f.days > 1 ? ` – ${fmtDate(addDays(f.date, f.days - 1))}` : ''} · ${teamById(f.team)?.name} (${teamById(f.team)?.members})` : ''; };
   return (
     <>
-      <PageHead title="Installations" crumbs={[{ label: 'Dashboard', to: '/' }, { label: 'Installations' }]} actions={<><Link to="/diary" className="btn btn-grey"><IconCalendar size={16} />Open diary</Link><button className="btn btn-primary" onClick={() => setModal('any')}><IconCalendarPlus size={16} />Book installation</button></>} />
+      <PageHead title="Installations" crumbs={[{ label: 'Dashboard', to: '/' }, { label: 'Installations' }]} actions={<><Link to="/diary" className="btn btn-grey"><IconCalendar size={16} />Open diary</Link><button className="btn btn-primary" onClick={() => setAny(true)}><IconCalendarPlus size={16} />Book installation</button></>} />
       <div className="grid-4">
-        {[['Booked this month', '18', IconTool, '#0b6e5c'], ['Done', '11', IconCircleCheck, '#1f9d5b'], ['Ready to book', ready.length, IconCalendarPlus, '#2f6fde'], ['Not ready yet', notReady.length, IconAlertTriangle, '#d64545']].map(([l, v, I, c]: any) => (
-          <div key={l} className="card" style={{ flexDirection: 'row', gap: 14, alignItems: 'center', padding: 16 }}><Tile icon={<I size={22} />} color={c} size={48} /><div className="vstack" style={{ gap: 2 }}><span className="small t2">{l}</span><b style={{ fontSize: 22 }}>{v}</b></div></div>
+        {[['Ready to book', ready.length, IconCalendarPlus], ['Booked', booked.length, IconCalendar], ['On site now', onSite.length, IconTool], ['Finished · to review', finished.length, IconCircleCheck]].map(([l, v, I]: any) => (
+          <div key={l} className="card" style={{ flexDirection: 'row', gap: 14, alignItems: 'center', padding: 16 }}><Tile icon={<I size={22} />} color={l === 'Ready to book' && v ? '#e0a100' : '#0b6e5c'} size={48} /><div className="vstack" style={{ gap: 2 }}><span className="small t2">{l}</span><b style={{ fontSize: 22 }}>{v}</b></div></div>
         ))}
       </div>
       <div className="row">
         <div className="col grow">
           <Card>
-            <CardHead title="Ready to book" sub="Every check is done — these jobs can go in the diary" />
-            {ready.length === 0 && <div className="small muted">Nothing waiting. Well done.</div>}
-            {ready.map(({ j, checks }) => (
-              <div key={j.id} className="card" style={{ padding: 14, gap: 12 }}>
-                <div className="hstack" style={{ gap: 12 }}>
-                  <img src={IMG[j.photo]} alt="" style={{ width: 52, height: 52, borderRadius: 10, objectFit: 'cover' }} />
-                  <div className="vstack" style={{ gap: 3, flex: 1 }}><Link to={`/jobs/${j.id}`} className="b" style={{ fontSize: 14 }}>{j.customer}</Link><span className="small muted">{j.id} · {j.products}</span></div>
-                  <button className="btn btn-primary btn-sm" onClick={() => setModal(j.id)}><IconCalendarPlus size={14} />Book in diary</button>
-                </div>
-                <div className="hstack" style={{ gap: 14, flexWrap: 'wrap' }}>{checks.map(([c, ok]) => <span key={c} className="hstack small" style={{ gap: 5, color: ok ? 'var(--ok)' : 'var(--err)' }}>{ok ? <IconCircleCheck size={15} /> : <IconCircleX size={15} />}{c}</span>)}</div>
-              </div>
-            ))}
+            <CardHead title="Ready to book" sub="Delivered and checked, or approved by a director" />
+            {ready.length === 0 && <div className="small muted">Nothing waiting to be booked.</div>}
+            {ready.map(({ r }) => <Line key={r.e.id} r={r} extra={r.e.ops?.override && !r.e.ops?.received?.ok ? <span className="tiny" style={{ color: 'var(--warn)', fontWeight: 600 }}>Override approved by {r.e.ops.override.by}</span> : <span className="tiny hstack" style={{ gap: 4, color: 'var(--ok)' }}><IconCircleCheck size={12} />Delivered and checked {r.e.ops?.received?.on}</span>}><button className="btn btn-primary btn-sm" onClick={() => setAct({ k: 'book', e: r.e })}><IconCalendarPlus size={14} />Book installation</button></Line>)}
           </Card>
           <Card>
-            <CardHead title="Not ready yet" sub="These can’t be booked until the red checks are done" />
-            {notReady.map(({ j, checks }) => (
-              <div key={j.id} className="hstack" style={{ gap: 12, padding: '4px 0', opacity: 0.95 }}>
-                <img src={IMG[j.photo]} alt="" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', filter: 'grayscale(.5)' }} />
-                <div className="vstack" style={{ gap: 4, flex: 1 }}>
-                  <Link to={`/jobs/${j.id}`} className="b">{j.customer} <span className="tiny muted">· {j.id}</span></Link>
-                  <span className="hstack tiny" style={{ gap: 12, flexWrap: 'wrap' }}>{checks.map(([c, ok]) => <span key={c} className="hstack" style={{ gap: 4, color: ok ? 'var(--ok)' : 'var(--err)', fontWeight: ok ? 400 : 600 }}>{ok ? <IconCircleCheck size={13} /> : <IconCircleX size={13} />}{c}</span>)}</span>
-                </div>
-                {j.blocked && <Tag tone="err">{j.blocked}</Tag>}
-              </div>
-            ))}
+            <CardHead title="Booked" sub="Release the job pack before the team goes" />
+            {booked.length === 0 && <div className="small muted">No installations booked.</div>}
+            {booked.map(r => <Line key={r.e.id} r={r} extra={<span className="tiny">{fitText(r)} · {r.e.ops?.pack ? <span style={{ color: 'var(--ok)' }}>job pack sent {r.e.ops.pack}</span> : <span style={{ color: 'var(--warn)', fontWeight: 600 }}>job pack not sent</span>}</span>}><Btn r={r} /></Line>)}
+          </Card>
+          <Card>
+            <CardHead title="On site now" sub="Updated by the installers from their phone" />
+            {onSite.length === 0 && <div className="small muted">Nobody on site right now.</div>}
+            {onSite.map(r => <Line key={r.e.id} r={r} extra={<div className="hstack" style={{ gap: 8 }}><Progress value={r.e.ops?.progress || 0} /><span className="tiny">{r.e.ops?.progress || 0}%</span></div>}><button className="btn btn-outline btn-sm" onClick={() => setAct({ k: 'progress', e: r.e })}>Progress update</button><Btn r={r} /></Line>)}
+          </Card>
+          <Card>
+            <CardHead title="Finished · waiting for the office" sub="Snags to fix, then final review and close" />
+            {finished.length === 0 && <div className="small muted">Nothing waiting.</div>}
+            {finished.map(r => <Line key={r.e.id} r={r} extra={<span className="tiny muted">{r.st.status}</span>}><Btn r={r} /></Line>)}
           </Card>
         </div>
         <Card className="w-400">
-          <CardHead title="Booked installations" right={<Link to="/diary" className="link">Diary<IconChevronRight size={14} /></Link>} />
-          <div className="list">
-            {upcoming.map(e => {
-              const j = jobs.find(x => x.id === e.job);
-              return (
-                <Link to={e.job ? `/jobs/${e.job}` : '/diary'} key={e.id} className="hstack" style={{ gap: 12, padding: '11px 0' }}>
-                  <img src={IMG[e.photo]} alt="" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover' }} />
-                  <div className="vstack" style={{ gap: 2, flex: 1 }}><b>{j?.customer || e.title}</b><span className="tiny muted">{fmtDate(e.date)}{e.days > 1 ? ` – ${fmtDate(addDays(e.date, e.days - 1))}` : ''} · {teamById(e.team)!.name}</span></div>
-                  <Tag tone={e.date < TODAY ? 'ok' : e.date === TODAY ? 'jade' : 'info'}>{e.date + '' < TODAY && addDays(e.date, e.days - 1) < TODAY ? 'Done' : e.date <= TODAY ? 'On site' : 'Booked'}</Tag>
-                </Link>
-              );
-            })}
-          </div>
+          <CardHead title="Waiting for delivery" sub="Can be booked early only with a director's approval" />
+          {notReady.length === 0 && <div className="small muted">Nothing waiting.</div>}
+          {notReady.map(({ r }) => (
+            <div key={r.e.id} className="vstack" style={{ gap: 6, padding: '10px 0', borderTop: '1px solid var(--border)' }}>
+              <Link to={`/jobs/${r.e.jobId}`} className="b">{r.e.name} <span className="tiny muted">· {r.e.jobId}</span></Link>
+              <span className="tiny muted">{r.st.status}</span>
+              {!installOf(r.e, events) && !r.e.ops?.override && <button className="btn btn-outline btn-xs" style={{ alignSelf: 'flex-start' }} onClick={() => setAct({ k: 'override', e: r.e })}>Book early (director approval)</button>}
+              {installOf(r.e, events) && <span className="tiny" style={{ color: 'var(--ok)' }}>Booked {fitText(r)}</span>}
+            </div>
+          ))}
         </Card>
       </div>
-      {modal && <BookInstallModal jobId={modal === 'any' ? undefined : modal} onClose={() => setModal(null)} />}
+      {act && <ActionModal k={act.k} e={act.e} onClose={() => setAct(null)} />}
+      {any && <BookInstallModal onClose={() => setAny(false)} />}
     </>
   );
 }

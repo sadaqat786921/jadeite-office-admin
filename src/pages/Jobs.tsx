@@ -1,18 +1,22 @@
+// Jobs: every won customer, from the office checks after Won to aftercare.
+// The columns follow the same journey as the Enquiries board, so a job is never in two places.
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useStore } from '../data/store';
-import { IconSearch, IconPlus, IconChevronRight, IconAlertTriangle, IconLayoutGrid, IconListDetails, IconUser } from '@tabler/icons-react';
-import { PageHead, Tag, Avatar, Seg } from '../components/ui';
-import { NewEnquiryModal } from '../components/Forms';
-import { JOB_STAGES, IMG, gbp, teamById, staffById } from '../data/mock';
+import { IconSearch, IconChevronRight, IconBriefcase, IconUserCheck, IconCalendarEvent, IconCurrencyPound } from '@tabler/icons-react';
+import { PageHead, Tag, Avatar, Tile, Empty } from '../components/ui';
+import { roleTone, needsOffice, ActionModal, installOf, PHASES } from '../components/Journey';
+import { useRows, phaseLabel, isJob, totalsOf, products, Row } from '../components/derive';
+import { gbp, teamById } from '../data/mock';
+import { useStore, fmtDate, TODAY, addDays } from '../data/store';
 
-export const jobTone: Record<string, string> = { Survey: 'info', Quote: 'info', Ordered: 'jade', Delivery: 'warn', Installation: 'jade', Snag: 'err', Complete: 'ok', Aftercare: 'grey' };
+export const JOB_PHASES = ['won', 'order', 'ready', 'install', 'review', 'pay', 'after'];
+export const jobPath = (r: { e: { jobId?: string; id: string } }) => `/jobs/${r.e.jobId || r.e.id}`;
 
-export function StageBar({ stage }: { stage: string }) {
-  const i = JOB_STAGES.indexOf(stage as any);
+export function StageBar({ phase }: { phase: string }) {
+  const i = JOB_PHASES.indexOf(phase);
   return (
-    <div className="hstack" style={{ gap: 3 }}>
-      {JOB_STAGES.slice(0, 7).map((s, j) => <span key={s} title={s} style={{ width: 16, height: 6, borderRadius: 3, background: j < i ? '#00c7a1' : j === i ? (stage === 'Snag' ? '#d64545' : '#0b6e5c') : '#e3e9e7' }} />)}
+    <div className="hstack" style={{ gap: 3 }} title={phaseLabel(phase)}>
+      {JOB_PHASES.map((p, j) => <span key={p} style={{ width: 14, height: 6, borderRadius: 3, background: j < i ? '#00c7a1' : j === i ? '#0b6e5c' : '#e3e9e7' }} />)}
     </div>
   );
 }
@@ -20,66 +24,60 @@ export function StageBar({ stage }: { stage: string }) {
 export function Jobs() {
   const nav = useNavigate();
   const [sp] = useSearchParams();
-  const { jobs, attention } = useStore();
-  const [f, setF] = useState(sp.get('filter') || 'All');
+  const { events } = useStore();
+  const rows = useRows().filter(r => isJob(r.e));
+  const [f, setF] = useState(sp.get('phase') || 'all');
+  const [mine, setMine] = useState(false);
   const [q, setQ] = useState('');
-  const [view, setView] = useState('list');
-  const [modal, setModal] = useState(false);
-  const filters = ['All', 'Late', 'Blocked', 'Not booked', 'No next step', ...JOB_STAGES.slice(0, 7)];
-  const special: Record<string, any[]> = { Late: attention.late, Blocked: attention.blocked, 'Not booked': attention.notBooked, 'No next step': attention.noNext };
-  const matchF = (j: any, x: string) => x === 'All' || (special[x] ? special[x].some(k => k.id === j.id) : j.stage === x);
-  const match = (j: any) => matchF(j, f);
-  const rows = jobs.filter(j => match(j) && (j.customer + j.id + j.postcode + j.products).toLowerCase().includes(q.toLowerCase()));
-  const n = (x: string) => jobs.filter(j => matchF(j, x)).length;
+  const [act, setAct] = useState<{ k: string; r: Row } | null>(null);
+  const list = rows.filter(r => (f === 'all' || r.st.phase === f) && (!mine || needsOffice(r.st)) && (r.e.name + (r.e.jobId || '') + r.e.postcode + r.e.address).toLowerCase().includes(q.toLowerCase()));
+  const weekEnd = addDays(TODAY, 7);
+  const fitting = rows.filter(r => { const fit = installOf(r.e, events); return fit && fit.date >= TODAY && fit.date <= weekEnd; });
   return (
     <>
-      <PageHead title="Jobs" crumbs={[{ label: 'Dashboard', to: '/' }, { label: 'Jobs' }]}
-        actions={<><Seg value={view} onChange={setView} items={[{ id: 'list', label: 'List', icon: <IconListDetails size={15} /> }, { id: 'cards', label: 'Cards', icon: <IconLayoutGrid size={15} /> }]} /><button className="btn btn-primary" onClick={() => setModal(true)}><IconPlus size={16} />New enquiry</button></>} />
-      <div className="hstack" style={{ flexWrap: 'wrap', gap: 6 }}>
-        <div className="input-icon" style={{ width: 280, marginRight: 6 }}><IconSearch size={16} /><input className="input" style={{ height: 34 }} placeholder="Search job, customer or postcode" value={q} onChange={e => setQ(e.target.value)} /></div>
-        {filters.map(s => <button key={s} className={`chip ${f === s ? 'on' : ''}`} onClick={() => setF(s)}>{['Late', 'Blocked'].includes(s) && n(s) > 0 && <IconAlertTriangle size={13} color={f === s ? '#fff' : '#d64545'} />}{s}<span className="n">{n(s)}</span></button>)}
+      <PageHead title="Jobs" crumbs={[{ label: 'Dashboard', to: '/' }, { label: 'Jobs' }]} />
+      <div className="grid-4">
+        {[['Jobs in progress', String(rows.filter(r => r.st.phase !== 'after').length), IconBriefcase, 'From Won to final payment'], ['Your turn', String(rows.filter(r => needsOffice(r.st)).length), IconUserCheck, 'Jobs waiting for the office'], ['Fitting in the next 7 days', String(fitting.length), IconCalendarEvent, fitting.map(r => r.e.name.split(' ').pop()).join(', ') || 'None booked'], ['Value in progress', gbp(rows.filter(r => r.st.phase !== 'after').reduce((a, r) => a + totalsOf(r.e).total, 0)), IconCurrencyPound, 'Including VAT']].map(([l, v, I, s]: any) => (
+          <div key={l} className="card" style={{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16 }}><Tile icon={<I size={22} />} color="#0b6e5c" size={48} /><div className="vstack" style={{ gap: 2 }}><span className="small t2">{l}</span><b style={{ fontSize: 22 }}>{v}</b><span className="tiny muted">{s}</span></div></div>
+        ))}
       </div>
-      {view === 'list' ? (
-        <div className="card flush">
-          <table className="tbl">
-            <thead><tr><th>Job</th><th>Products</th><th>Stage</th><th>Next action</th><th>Owner</th><th>Due</th><th>Team</th><th>Value</th><th></th></tr></thead>
-            <tbody>
-              {rows.map(j => (
-                <tr key={j.id} className="click" onClick={() => nav(`/jobs/${j.id}`)}>
-                  <td><div className="hstack" style={{ gap: 10 }}><img src={IMG[j.photo]} alt="" style={{ width: 42, height: 42, borderRadius: 8, objectFit: 'cover' }} /><div className="vstack" style={{ gap: 2 }}><b>{j.customer}</b><span className="tiny muted">{j.id} · {j.postcode}</span></div></div></td>
-                  <td className="t2">{j.products}</td>
-                  <td><div className="vstack" style={{ gap: 6 }}><Tag tone={jobTone[j.stage]}>{j.stage}</Tag><StageBar stage={j.stage} /></div></td>
-                  <td><div className="vstack" style={{ gap: 2 }}><span>{j.next}</span>{j.blocked && <span className="tiny hstack" style={{ color: 'var(--err)', gap: 4 }}><IconAlertTriangle size={12} />{j.blocked}</span>}</div></td>
-                  <td style={{ whiteSpace: 'nowrap' }}><span className="hstack" style={{ gap: 6 }}><IconUser size={14} color="#6b7a78" />{j.owner}</span></td>
-                  <td style={{ whiteSpace: 'nowrap' }}><b style={{ color: j.overdue ? 'var(--err)' : j.due === 'Today' ? 'var(--warn)' : 'var(--text)' }}>{j.due}</b></td>
-                  <td>{j.team ? <span className="tag grey">{teamById(j.team)!.name}</span> : <span className="tiny muted">Not booked</span>}</td>
-                  <td className="b">{gbp(j.value)}</td>
+      <div className="card flush">
+        <div className="toolbar" style={{ flexWrap: 'wrap' }}>
+          <div className="input-icon" style={{ width: 280 }}><IconSearch size={16} /><input className="input" style={{ height: 36 }} placeholder="Search customer, job or postcode" value={q} onChange={e => setQ(e.target.value)} /></div>
+          <button className={`chip ${mine ? 'on' : ''}`} onClick={() => setMine(!mine)}><IconUserCheck size={14} />Only my turn</button>
+          {['all', ...JOB_PHASES].map(p => <button key={p} className={`chip ${f === p ? 'on' : ''}`} onClick={() => setF(p)}>{p === 'all' ? 'All' : PHASES.find(x => x.id === p)?.label}<span className="n">{rows.filter(r => p === 'all' || r.st.phase === p).length}</span></button>)}
+        </div>
+        <table className="tbl">
+          <thead><tr><th>Job</th><th>Customer</th><th>Products</th><th>Value · paid</th><th>Where it is</th><th>Next step</th><th>Installation</th><th></th></tr></thead>
+          <tbody>
+            {list.map(r => {
+              const { e, st } = r;
+              const t = totalsOf(e); const o = e.ops || {};
+              const paid = o.paid ? t.total : (o.deposit ? t.deposit : 0) + ((o.work || o.stagePaid) ? (t.stage || 0) : 0);
+              const fit = installOf(e, events);
+              return (
+                <tr key={e.id} className="click" onClick={() => nav(jobPath(r))}>
+                  <td><b>{e.jobId || 'Not ordered yet'}</b><div className="tiny muted">Won {e.wonOn}</div></td>
+                  <td><div className="hstack" style={{ gap: 10 }}><Avatar i={e.initials} size={30} /><div className="vstack" style={{ gap: 2 }}><b>{e.name}</b><span className="tiny muted">{e.address.split(', ').pop()} · {e.postcode}</span></div></div></td>
+                  <td className="t2" style={{ maxWidth: 220 }}>{products(e)}</td>
+                  <td><b>{gbp(t.total)}</b><div className="tiny muted">{gbp(paid)} paid</div></td>
+                  <td><div className="vstack" style={{ gap: 5 }}><Tag tone="jade">{phaseLabel(st.phase)}</Tag><StageBar phase={st.phase} /></div></td>
+                  <td onClick={ev => ev.stopPropagation()}>
+                    <div className="vstack" style={{ gap: 4 }}>
+                      <span className="hstack" style={{ gap: 6 }}><Tag tone={roleTone[st.role]}>{needsOffice(st) ? 'Your turn' : st.role}</Tag><span className="small">{st.label}</span></span>
+                      {needsOffice(st) ? <button className="btn btn-primary btn-xs" style={{ alignSelf: 'flex-start' }} onClick={() => setAct({ k: st.key, r })}>{st.icon}{st.label}</button> : <span className="tiny muted">{st.status}</span>}
+                    </div>
+                  </td>
+                  <td className="t2">{fit ? <><b style={{ color: 'var(--text)' }}>{fmtDate(fit.date)}</b><div className="tiny muted">{teamById(fit.team)?.name} · {fit.days} day{fit.days > 1 ? 's' : ''}</div></> : 'Not booked'}</td>
                   <td><IconChevronRight size={16} color="#6b7a78" /></td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="pager"><span>{rows.length} jobs · every job shows its owner, next action and due date</span></div>
-        </div>
-      ) : (
-        <div className="grid-3">
-          {rows.map(j => (
-            <div key={j.id} className="card flush" style={{ cursor: 'pointer' }} onClick={() => nav(`/jobs/${j.id}`)}>
-              <div style={{ position: 'relative', height: 140 }}>
-                <img src={IMG[j.photo]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                <span style={{ position: 'absolute', top: 10, left: 10 }}><Tag tone={`solid-${jobTone[j.stage] === 'err' ? 'err' : jobTone[j.stage] === 'warn' ? 'warn' : 'ok'}`}>{j.stage}</Tag></span>
-              </div>
-              <div className="vstack" style={{ padding: 16, gap: 10 }}>
-                <div className="between"><b style={{ fontSize: 15 }}>{j.customer}</b><b>{gbp(j.value)}</b></div>
-                <span className="small muted">{j.id} · {j.products}</span>
-                <StageBar stage={j.stage} />
-                <div className="between small" style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}><span>{j.next}</span><b style={{ color: j.overdue ? 'var(--err)' : 'var(--text)' }}>{j.due}</b></div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      {modal && <NewEnquiryModal onClose={() => setModal(false)} />}
+              );
+            })}
+            {list.length === 0 && <tr><td colSpan={8}><Empty icon={<IconBriefcase size={22} />} title="No jobs here" sub="Jobs appear here as soon as an enquiry is marked Won." /></td></tr>}
+          </tbody>
+        </table>
+      </div>
+      {act && <ActionModal k={act.k} e={act.r.e} onClose={() => setAct(null)} />}
     </>
   );
 }

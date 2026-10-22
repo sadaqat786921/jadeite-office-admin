@@ -16,7 +16,7 @@ import { quoteTotals } from '../data/lifecycle';
 import { stageTone } from './Enquiries';
 
 const commIcon: Record<string, [any, string]> = {
-  'email-out': [IconMailForward, '#2f6fde'], 'email-in': [IconMail, '#0b6e5c'], call: [IconPhoneCall, '#e0a100'], note: [IconNotes, '#3a4a4a'], system: [IconSettings, '#6b7a78'], reminder: [IconBellRinging, '#d64545'],
+  'email-out': [IconMailForward, '#0b6e5c'], 'email-in': [IconMail, '#0b6e5c'], call: [IconPhoneCall, '#e0a100'], note: [IconNotes, '#3a4a4a'], system: [IconSettings, '#6b7a78'], reminder: [IconBellRinging, '#d64545'],
 };
 const commLabel: Record<string, string> = { 'email-out': 'Email sent', 'email-in': 'Email received', call: 'Call', note: 'Note', system: 'Update', reminder: 'Reminder' };
 
@@ -42,8 +42,9 @@ function MoreMenu({ items }: { items: { label: string; icon: React.ReactNode; on
   );
 }
 
-export default function EnquiryRecord() {
-  const { id } = useParams();
+export default function EnquiryRecord({ recordId, from }: { recordId?: string; from?: 'jobs' } = {}) {
+  const params = useParams();
+  const id = recordId || params.id;
   const toast = useToast();
   const st = useStore();
   const { enquiries, orders, events, snags, jobs, updEnq } = st;
@@ -102,7 +103,7 @@ export default function EnquiryRecord() {
 
   return (
     <>
-      <PageHead title={e.name} crumbs={[{ label: 'Enquiries', to: '/enquiries' }, { label: `${e.id} · ${e.name}` }]}
+      <PageHead title={e.name} crumbs={from === 'jobs' ? [{ label: 'Jobs', to: '/jobs' }, { label: `${e.jobId || 'Not ordered yet'} · ${e.name}` }] : [{ label: 'Enquiries', to: '/enquiries' }, { label: `${e.id} · ${e.name}` }]}
         actions={<>
           {remindWho && !['reopen'].includes(step.key) && <button className="btn btn-outline" onClick={remind}><IconBellRinging size={16} />Remind {remindWho.split(' ')[0] === 'Team' ? remindWho : remindWho.split(' ')[0]}</button>}
           {e.type === 'Sales' && <MoreMenu items={more} />}

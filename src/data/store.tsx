@@ -1,7 +1,7 @@
 // Shared, in-memory state so every Office Admin flow updates the whole platform.
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
-const KEY = 'jadeite-office-admin-demo-v5';
+const KEY = 'jadeite-office-admin-demo-v7';
 import * as M from './mock';
 import { SEED, EXTRA_ENQUIRIES, Lifecycle, Comm, seedValue } from './lifecycle';
 
@@ -36,35 +36,32 @@ const initialEvents: DiaryEvent[] = [
 ];
 
 const initialTasks: Task[] = [
-  { id: 'tk1', title: 'Chase Emplas for the JG-10466 delivery', owner: 'sm', due: TODAY, job: 'JG-10466', done: false },
+  { id: 'tk1', title: 'Check the Smiths delivery is on track', owner: 'sm', due: TODAY, job: 'JG-10482', done: false },
   { id: 'tk2', title: 'Book installation for The Bakers', owner: 'sm', due: TODAY, job: 'JG-10477', done: false },
   { id: 'tk3', title: 'Send balance reminder to Mr Khan', owner: 'sm', due: '2026-10-17', job: 'JG-10455', done: false },
-  { id: 'tk4', title: 'Confirm survey time with The Lees', owner: 'ps', due: TODAY, job: 'JG-10490', done: true },
   { id: 'tk5', title: 'Call back Mr Khan about new windows', owner: 'jb', due: '2026-10-14', done: false },
   { id: 'tk6', title: 'Check new Emplas price list', owner: 'sm', due: '2026-10-16', done: false },
 ];
 
 const initialAppts: Appt[] = [
   { id: 'ap1', kind: 'Sales visit', customer: 'The Lees', who: 'mh', date: '2026-10-20', time: '10:00 – 11:00', address: '27 Park View, Otley', synced: true, status: 'Booked' },
-  { id: 'ap2', kind: 'Survey', customer: 'The Lees', who: 'ps', date: '2026-10-19', time: '10:00 – 12:00', job: 'JG-10490', address: '27 Park View, Otley', synced: true, status: 'Booked' },
   { id: 'ap3', kind: 'Follow-up call', customer: 'Ashby Farm', who: 'mh', date: TODAY, time: '14:00', synced: true, status: 'Booked' },
   { id: 'ap4', kind: 'Follow-up call', customer: 'Mr Khan', who: 'jb', date: '2026-10-14', time: '11:00', synced: true, status: 'Overdue' },
   { id: 'ap5', kind: 'Sales visit', customer: 'Mr Evans', who: 'mh', date: '2026-10-21', time: '13:30 – 14:30', address: '18 Station Rd, Knaresborough', synced: true, status: 'Booked' },
-  { id: 'ap6', kind: 'Survey', customer: 'Dr Whitfield', who: 'ps', date: '2026-10-15', time: '14:00 – 15:00', job: 'JG-10459', address: '3 High Street, Harrogate', synced: true, status: 'Done' },
   { id: 'ap7', kind: 'Follow-up call', customer: 'M. Duffy', who: 'ec', date: '2026-10-19', time: '09:30', synced: false, status: 'Booked' },
 ];
 
 const initialEmails: Email[] = [
-  { id: 'em1', from: 'j.cooper@email.co.uk', subject: 'Question about my windows', preview: 'Hi, one of the new windows is letting in a draught at the top…', when: 'Today 08:12' },
-  { id: 'em2', from: 'accounts@emplas.co.uk', subject: 'Remittance advice', preview: 'Please find attached the remittance for orders SO-481…', when: 'Yesterday 16:40' },
+  { id: 'em1', from: 'dave.smith.home@gmail.com', subject: 'Driveway on fitting day', preview: 'Hi, it is David Smith (Harrogate). Do the fitters need the driveway clear on the 22nd? We can move both cars.', when: 'Today 09:05' },
+  { id: 'em2', from: 'accounts@emplas.co.uk', subject: 'Remittance advice', preview: 'Please find attached the remittance for order SO-48213. Thank you for your payment.', when: 'Yesterday 16:40' },
+  { id: 'em3', from: 'info@ripon-lettings.co.uk', subject: 'Quote for a rental flat', preview: 'Hello, we manage a flat in Ripon and need 3 new windows. Could someone come to measure?', when: 'Yesterday 11:20' },
 ];
 
 const enq0: EnquiryX[] = [...M.enquiries, ...EXTRA_ENQUIRIES].map(e => ({ ...e, ...(SEED[e.id] || {}), value: seedValue(e.id) ?? e.value, type: 'Sales', stageDays: Math.min(e.daysAgo, 9), followUp: e.assigned ? e.nextDue : undefined }));
-enq0.unshift({ id: 'EN-2292', name: 'Mrs Cooper', initials: 'JC', phone: '07700 900 990', email: 'j.cooper@email.co.uk', address: '5 Elm Close, Ripon', postcode: 'HG4 2BB', product: 'Window draught', source: 'Email', received: '16 Oct, 08:12', daysAgo: 0, stage: 'New Enquiry', value: 0, next: 'Route to aftercare', nextDue: 'Today', photo: 'window', type: 'Aftercare', stageDays: 0 });
+enq0.unshift({ id: 'EN-2292', name: 'Mrs Cooper', initials: 'JC', phone: '07700 900 990', email: 'j.cooper@email.co.uk', address: '5 Elm Close, Ripon', postcode: 'HG4 2BB', product: 'Window draught', source: 'Email', received: '16 Oct, 08:12', daysAgo: 0, stage: 'New Enquiry', value: 0, next: 'Route to aftercare', nextDue: 'Today', photo: 'window', type: 'Aftercare', stageDays: 0, comms: [{ id: 'cp1', kind: 'email-in', title: 'Question about my windows', when: '16 Oct, 08:12', who: 'Mrs Cooper', body: 'Hi, one of the new windows is letting in a draught at the top. Could someone take a look?' }] });
 
 const jobs0: JobX[] = M.jobs.map(j => ({
   ...j,
-  ...(j.id === 'JG-10459' ? { blocked: 'Part delivery — 2 frames to come' } : {}),
   installDate: j.id === 'JG-10482' ? '2026-10-22' : j.id === 'JG-10493' ? '2026-10-16' : j.id === 'JG-10455' ? '2026-10-12' : undefined,
   installDays: j.id === 'JG-10493' ? 3 : j.id === 'JG-10455' ? 3 : 2,
   history: [
@@ -75,7 +72,10 @@ const jobs0: JobX[] = M.jobs.map(j => ({
   ],
 }));
 
-const snags0 = M.snags.map(s => ({ ...s, kind: 'Snag' as 'Snag' | 'Aftercare' }));
+const snags0 = [
+  { id: 'SN-121', job: 'JG-10398', customer: 'Mrs Cooper', title: 'Bedroom window handle loose', detail: 'Handle on the back bedroom window has come loose. Customer emailed 14 Oct.', reported: 'Customer · 14 Oct', status: 'Open', tone: 'err', severity: 'Minor', photo: 'window', owner: 'Aftercare team', kind: 'Aftercare' as 'Snag' | 'Aftercare' },
+  ...M.snags.map(s => ({ ...s, kind: 'Snag' as 'Snag' | 'Aftercare' })),
+];
 const orders0: Order[] = M.orders.map(o => ({ ...o }));
 const deliveries0 = M.deliveries.map(d => ({ ...d, problem: '' as string }));
 const surveys0 = M.surveys.map(s => ({ ...s }));
