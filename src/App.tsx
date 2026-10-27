@@ -13,7 +13,7 @@ import { Jobs } from './pages/Jobs';
 import JobDetail from './pages/JobDetail';
 import Surveys from './pages/Surveys';
 import { Orders, Deliveries } from './pages/Supply';
-import { Installations, Diary } from './pages/Installs';
+import { Installations, Diary, InstallerDiary } from './pages/Installs';
 import { Snags, Aftercare } from './pages/Aftercare';
 import Messages from './pages/Messages';
 import Payments from './pages/Payments';
@@ -41,6 +41,7 @@ export default function App() {
         <Route path="/deliveries" element={<Deliveries />} />
         <Route path="/installations" element={<Installations />} />
         <Route path="/diary" element={<Diary />} />
+        <Route path="/diary/installer/:id" element={<InstallerDiary />} />
         <Route path="/snags" element={<Snags />} />
         <Route path="/aftercare" element={<Aftercare />} />
         <Route path="/messages" element={<Messages />} />

@@ -30,7 +30,20 @@ export const teams = [
   { id: 't3', name: 'Team 3', lead: 'Workshop', members: 'Tom Wright & Ben Cole', initials: 'T3', progress: 70, color: '#e0a100', status: 'Workshop', where: 'Head office workshop', since: 'Free from 14:00' },
 ];
 
-export const STAGES = ['New Enquiry', 'Qualification', 'Appointment', 'Quote Preparation', 'Quote Sent', 'Follow-up', 'Won', 'Lost'] as const;
+// Installers are booked one by one (not as fixed teams). The office picks whoever is free that day.
+export type Installer = { id: string; name: string; initials: string; role: string; skills: string; phone: string; color: string; base: string; active?: boolean };
+export const installers: Installer[] = [
+  { id: 'dh', name: 'Dan Hughes', initials: 'DH', role: 'Lead fitter', skills: 'Windows, doors', phone: '07700 900 201', color: '#00c7a1', base: 'Leicester' },
+  { id: 'lb', name: 'Lee Brooks', initials: 'LB', role: 'Fitter', skills: 'Windows, doors', phone: '07700 900 202', color: '#0b6e5c', base: 'Leicester' },
+  { id: 'ak', name: 'Amir Khan', initials: 'AK', role: 'Lead fitter', skills: 'Orangeries, roofs, commercial', phone: '07700 900 203', color: '#13836d', base: 'Harrogate' },
+  { id: 'jp', name: 'Joe Patel', initials: 'JP', role: 'Fitter', skills: 'Orangeries, bi-folds', phone: '07700 900 204', color: '#3a9c86', base: 'Harrogate' },
+  { id: 'tw', name: 'Tom Wright', initials: 'TW', role: 'Lead fitter', skills: 'Repairs, snags, doors', phone: '07700 900 205', color: '#0b1f1b', base: 'Leeds' },
+  { id: 'bc', name: 'Ben Cole', initials: 'BC', role: 'Fitter', skills: 'Windows, workshop', phone: '07700 900 206', color: '#2f5d55', base: 'Leeds' },
+  { id: 'cr', name: 'Chris Reid', initials: 'CR', role: 'Fitter', skills: 'Doors, bi-folds', phone: '07700 900 207', color: '#5fb8a3', base: 'Ripon' },
+  { id: 'sp', name: 'Sam Price', initials: 'SP', role: 'Apprentice', skills: 'Helps on any job', phone: '07700 900 208', color: '#7a8f8b', base: 'Leeds' },
+];
+
+export const STAGES =['New Enquiry', 'Qualification', 'Appointment', 'Quote Preparation', 'Quote Sent', 'Follow-up', 'Won', 'Lost'] as const;
 export type Stage = typeof STAGES[number];
 
 export type Enquiry = {

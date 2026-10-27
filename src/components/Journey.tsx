@@ -18,7 +18,9 @@ import {
   Foot, ME, P, FileChip, ContactModal, BookApptModal, FramepointSurveyModal, SendQuoteModal, ReplyModal, WonModal, LostModal, InviteModal, OrderModal,
   VendorConfirmModal, AddSnagModal, BookFinalSurveyModal, FinalSurveyModal, orderLines,
 } from './Lifecycle';
-import { AssignModal, BookInstallModal } from './Forms';
+import { AssignModal } from './Forms';
+import { BookInstallModal, InstallerPicker } from './Booking';
+import { crewTeam, crewOf, busyWith, joinNames, personById } from '../data/crew';
 import { RouteModal } from '../pages/Enquiries';
 
 export type Role = 'Office' | 'Sales' | 'Surveyor' | 'Installer' | 'Director';
@@ -84,8 +86,8 @@ export function stepFor(e: EnquiryX, ctx: JourneyCtx): Step {
   if (!o.received) return { phase: 'ready', key: 'receive', label: 'Check the delivery', icon: I(IconPackageImport), role: 'Office', status: 'Delivered · check it', hint: 'Record what arrived with photos. Flag anything missing, wrong or damaged.' };
   if (!o.received.ok) return { phase: 'ready', key: 'issue', label: 'Resolve delivery problem', icon: I(IconAlertTriangle), role: 'Office', status: `Problem: ${o.received.issue}`, hint: 'Get the replacement from the supplier, check it, then mark the problem as solved.' };
   const fit = installOf(e, ctx.events);
-  if (!fit) return { phase: 'ready', key: 'book', label: 'Book installation', icon: I(IconCalendarPlus), role: 'Office', status: 'Ready to book', hint: 'Choose a team, dates and arrival window. The diary checks leave and clashes.' };
-  const team = teamById(fit.team)?.name || 'Team';
+  if (!fit) return { phase: 'ready', key: 'book', label: 'Book installation', icon: I(IconCalendarPlus), role: 'Office', status: 'Ready to book', hint: 'Pick the date and arrival time, then choose the installers who are free that day.' };
+  const team = crewTeam(fit)!.name;
   if (!o.pack) return { phase: 'install', key: 'pack', label: 'Release job pack', icon: I(IconFolderShare), role: 'Office', status: `Booked ${fmtDate(fit.date)} · ${team}`, hint: 'Send the installers their job pack and send the customer how to get ready.' };
   if (!o.work) return { phase: 'install', key: 'start', label: 'Installer started', icon: I(IconHammer), role: 'Installer', status: `Fitting ${fmtDate(fit.date)} · ${team}`, hint: `${team} starts on ${fmtDate(fit.date)}. They update progress from their phone.`, wait: true };
   if (o.work === 'Started') return { phase: 'install', key: 'submit', label: 'Completion submitted', icon: I(IconClipboardCheck), role: 'Installer', status: `${team} working · ${o.progress || 0}% done`, hint: `${team} sends the checklist, photos, customer signature and any snags when they finish.`, wait: true };
@@ -451,9 +453,9 @@ export function JobPackModal({ e, onClose, onDone }: P) {
   const toast = useToast();
   const { updEnq, events } = useStore();
   const fit = installOf(e, events);
-  const team = teamById(fit?.team);
+  const team = crewTeam(fit);
   const lines = orderLines(e);
-  const [msg, setMsg] = useState(`Dear ${e.name},\n\nYour installation starts on ${fit ? fmtDate(fit.date, { weekday: 'long', day: 'numeric', month: 'long' }) : ''}. ${team?.members} will arrive between 8 and 9am.\n\nTo get ready, please:\n• clear about a metre inside each window and door\n• move curtains, blinds and anything fragile\n• keep the drive free for the van\n• keep pets in another room\n\nKind regards,\nJadeite Glazing`);
+  const [msg, setMsg] = useState(`Dear ${e.name},\n\nYour installation starts on ${fit ? fmtDate(fit.date, { weekday: 'long', day: 'numeric', month: 'long' }) : ''}. ${team?.members} will arrive between ${(fit?.time || '08:00 – 09:00').replace(' – ', ' and ')}.\n\nTo get ready, please:\n• clear about a metre inside each window and door\n• move curtains, blinds and anything fragile\n• keep the drive free for the van\n• keep pets in another room\n\nKind regards,\nJadeite Glazing`);
   const [reviewed, setReviewed] = useState(true);
   const save = () => {
     updEnq(e.id, x => ({ ops: { ...(x.ops || {}), pack: todayShort(), installerReviewed: reviewed }, next: 'Installation', nextDue: fit ? fmtDate(fit.date) : 'Soon' }),
@@ -482,7 +484,7 @@ export function InstallerProgressModal({ e, onClose, onDone }: P) {
   const toast = useToast();
   const { updEnq, events, updateJob } = useStore();
   const fit = installOf(e, events);
-  const team = teamById(fit?.team);
+  const team = crewTeam(fit);
   const [pct, setPct] = useState(Math.max(25, e.ops?.progress || 0));
   const [note, setNote] = useState('');
   const save = () => {
@@ -505,7 +507,7 @@ export function CompletionModal({ e, onClose, onDone }: P) {
   const toast = useToast();
   const { updEnq, events, set, updateJob } = useStore();
   const fit = installOf(e, events);
-  const team = teamById(fit?.team);
+  const team = crewTeam(fit);
   const items: [string, string?][] = [['Everything fitted and working'], ['Sealed inside and out, glass cleaned'], ['Old frames and waste removed'], ['Customer shown how everything works']];
   const [on, setOn] = useState(items.map(() => true));
   const [photos, setPhotos] = useState(12);
@@ -541,28 +543,29 @@ export function CompletionModal({ e, onClose, onDone }: P) {
 /* ===================== 22. Snag resolution / return visit ===================== */
 export function ReturnVisitModal({ e, onClose, onDone }: P) {
   const toast = useToast();
-  const { updEnq, set, snags } = useStore();
+  const { updEnq, set, snags, events } = useStore();
   const after = !!e.ops?.closed;
   const open = openSnags(e, snags as any, after ? 'Aftercare' : 'Snag').filter(x => x.status !== 'Visit booked');
-  const [team, setTeam] = useState('t2');
+  const fit = installOf(e, events);
   const [date, setDate] = useState(addDays(TODAY, 3));
+  const [crew, setCrew] = useState<string[]>(() => { const free = crewOf(fit).filter(id => !busyWith(id, addDays(TODAY, 3), 1, events)); return free.length ? free.slice(0, 1) : []; });
+  const names = joinNames(crew.map(id => personById(id)?.name || id));
   const save = () => {
     const ids = open.map(x => x.id);
-    set('snags', ss => ss.map(x => (ids.includes(x.id) ? { ...x, status: 'Visit booked', tone: 'info', owner: teamById(team)!.name } : x)));
-    set('events', es => [...es, { id: 'rv' + Date.now(), team, date, days: 1, kind: 'snag', title: `${e.name.split(' ').pop()} · ${after ? 'remedial' : 'return'} visit`, sub: `${e.jobId} · ${open.map(x => x.title).join(', ')}`, photo: e.photo, job: e.jobId }]);
-    updEnq(e.id, { next: after ? 'Remedial visit' : 'Return visit', nextDue: fmtDate(date) }, { kind: 'email-out', title: `${after ? 'Remedial' : 'Return'} visit booked · ${fmtDate(date)}`, body: `Dear ${e.name}, ${teamById(team)?.members} will come on ${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })} to fix: ${open.map(x => x.title.toLowerCase()).join(', ')}.`, who: ME });
-    toast(`Visit booked · ${teamById(team)?.name} · ${fmtDate(date)} · customer told`);
+    set('snags', ss => ss.map(x => (ids.includes(x.id) ? { ...x, status: 'Visit booked', tone: 'info', owner: names } : x)));
+    set('events', es => [...es, { id: 'rv' + Date.now(), team: 'crew', crew, time: '09:00 – 10:00', date, days: 1, kind: 'snag', title: `${e.name} · ${after ? 'remedial' : 'return'} visit`, sub: `${e.jobId} · ${open.map(x => x.title).join(', ')}`, photo: e.photo, job: e.jobId }]);
+    updEnq(e.id, { next: after ? 'Remedial visit' : 'Return visit', nextDue: fmtDate(date) }, { kind: 'email-out', title: `${after ? 'Remedial' : 'Return'} visit booked · ${fmtDate(date)}`, body: `Dear ${e.name}, ${names} will come on ${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })} to fix: ${open.map(x => x.title.toLowerCase()).join(', ')}.`, who: ME });
+    toast(`Visit booked · ${names} · ${fmtDate(date)} · customer told`);
     onDone?.('snags'); onClose();
   };
+  const busy = crew.some(id => busyWith(id, date, 1, events));
   return (
-    <Modal title={after ? 'Arrange a remedial visit' : 'Book a return visit'} sub={`${e.name} · ${open.length} to fix`} onClose={onClose} width={600} footer={<Foot onClose={onClose} onSave={save} disabled={!open.length} label="Book and tell everyone" icon={<IconCalendarPlus size={16} />} />}>
+    <Modal title={after ? 'Arrange a remedial visit' : 'Book a return visit'} sub={`${e.name} · ${open.length} to fix`} onClose={onClose} width={820} footer={<Foot onClose={onClose} onSave={save} disabled={!open.length || !crew.length || busy} label="Book and tell everyone" icon={<IconCalendarPlus size={16} />} />}>
       <div className="list" style={{ border: '1px solid var(--border)', borderRadius: 12, padding: '0 14px' }}>
         {open.map(x => <div key={x.id} className="hstack" style={{ gap: 10, padding: '10px 0' }}><IconAlertTriangle size={18} color="#e0a100" /><div className="vstack" style={{ gap: 2, flex: 1 }}><b style={{ fontSize: 13 }}>{x.title}</b><span className="tiny muted">{x.id} · {x.status}</span></div></div>)}
       </div>
-      <div className="grid-2">
-        <Field label="Installer team"><select className="select" value={team} onChange={x => setTeam(x.target.value)}>{teams.map(t => <option key={t.id} value={t.id}>{t.name} · {t.members}</option>)}</select></Field>
-        <Field label="Visit date"><input type="date" className="input" value={date} onChange={x => setDate(x.target.value)} /></Field>
-      </div>
+      <Field label="Visit date"><input type="date" className="input" style={{ maxWidth: 240 }} min={TODAY} value={date} onChange={x => x.target.value && setDate(x.target.value)} /></Field>
+      <Field label="Who goes?" hint={fit ? `Fitted by ${crewTeam(fit)?.members}. Anyone free can go.` : undefined}><InstallerPicker date={date} days={1} value={crew} onChange={setCrew} /></Field>
     </Modal>
   );
 }
@@ -727,6 +730,6 @@ export function JourneyCard({ e, st, mode, onOpen, onAct, onRemind, onMove, onDr
 
 // Reminder for whoever has the next step (salesperson, surveyor or installer team)
 export function remindText(e: EnquiryX, st: Step, events: DiaryEvent[]) {
-  const who = st.role === 'Sales' ? staffById(e.assigned)?.name : st.role === 'Surveyor' ? staffById(e.finalSurvey?.surveyor)?.name : st.role === 'Installer' ? teamById(installOf(e, events)?.team)?.name : 'the office';
+  const who = st.role === 'Sales' ? staffById(e.assigned)?.name : st.role === 'Surveyor' ? staffById(e.finalSurvey?.surveyor)?.name : st.role === 'Installer' ? crewTeam(installOf(e, events))?.name : 'the office';
   return { who: who || 'the team', body: `Please ${st.label.toLowerCase()} for ${e.name}.` };
 }

@@ -5,7 +5,8 @@ import { IconFileTypePdf, IconPhoto, IconFileInvoice, IconCertificate, IconPacka
 import { Link } from 'react-router-dom';
 import { useStore, EnquiryX, Order } from '../data/store';
 import { quoteTotals } from '../data/lifecycle';
-import { gbp, teamById, staffById } from '../data/mock';
+import { gbp, staffById } from '../data/mock';
+import { crewTeam } from '../data/crew';
 import { stepFor, Step, PHASES, installOf, openSnags } from './Journey';
 import { Drawer, Tag, useToast } from './ui';
 import { QuoteDoc, SurveyReport, FinalSurveyView, orderLines } from './Lifecycle';
@@ -109,7 +110,7 @@ export function DocViewer({ d, onClose }: { d: Doc; onClose: () => void }) {
             <span className="small t2">{d.note}</span>
           </div>
           {d.kind === 'ack' && order && <div className="vstack small" style={{ gap: 6 }}><span>Supplier: <b>{order.supplier}</b> · reference <b>{order.confirmRef}</b></span><span>Expected delivery: <b>{order.expected}</b></span>{lines.map((l, i) => <span key={i} className="t2">{l.qty} × {l.item.replace(/^\d+\.\s*/, '')} · {l.size}</span>)}</div>}
-          {d.kind === 'pack' && <div className="vstack small" style={{ gap: 6 }}><span>Team: <b>{teamById(fit?.team)?.name || '—'}</b> · {fit ? `starts ${fit.date}` : ''}</span>{lines.map((l, i) => <span key={i} className="t2">{l.qty} × {l.item.replace(/^\d+\.\s*/, '')} · {l.size} · {l.spec}</span>)}<span className="t2">Site notes: {e.survey?.fp?.notes || '—'}</span></div>}
+          {d.kind === 'pack' && <div className="vstack small" style={{ gap: 6 }}><span>Installers: <b>{crewTeam(fit)?.members || '—'}</b> · {fit ? `starts ${fit.date}${fit.time ? `, ${fit.time}` : ''}` : ''}</span>{lines.map((l, i) => <span key={i} className="t2">{l.qty} × {l.item.replace(/^\d+\.\s*/, '')} · {l.size} · {l.spec}</span>)}<span className="t2">Site notes: {e.survey?.fp?.notes || '—'}</span></div>}
           {d.kind === 'signoff' && <div className="vstack small" style={{ gap: 6 }}><span>Open snags: <b>{openSnags(e, snags as any).length}</b></span><div style={{ border: '1px dashed var(--border-input)', borderRadius: 10, height: 70, display: 'grid', placeItems: 'center', fontFamily: 'cursive', fontSize: 24 }}>{e.name.split(' ').pop()}</div></div>}
           {d.kind === 'photos' && <div className="grid-3" style={{ gap: 8 }}>{Array.from({ length: Math.min(6, e.ops?.received?.photos || 3) }).map((_, i) => <div key={i} className="photo-ph" />)}</div>}
           {d.kind === 'invoice' && <Tag tone={d.note.includes('due') ? 'warn' : 'ok'}>{d.note.includes('due') ? 'Due' : 'Paid'}</Tag>}

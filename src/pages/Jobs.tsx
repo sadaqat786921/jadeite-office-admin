@@ -6,7 +6,8 @@ import { IconSearch, IconChevronRight, IconBriefcase, IconUserCheck, IconCalenda
 import { PageHead, Tag, Avatar, Tile, Empty } from '../components/ui';
 import { roleTone, needsOffice, ActionModal, installOf, PHASES } from '../components/Journey';
 import { useRows, phaseLabel, isJob, totalsOf, products, Row } from '../components/derive';
-import { gbp, teamById } from '../data/mock';
+import { gbp } from '../data/mock';
+import { crewTeam } from '../data/crew';
 import { useStore, fmtDate, TODAY, addDays } from '../data/store';
 
 export const JOB_PHASES = ['won', 'order', 'ready', 'install', 'review', 'pay', 'after'];
@@ -68,7 +69,7 @@ export function Jobs() {
                       {needsOffice(st) ? <button className="btn btn-primary btn-xs" style={{ alignSelf: 'flex-start' }} onClick={() => setAct({ k: st.key, r })}>{st.icon}{st.label}</button> : <span className="tiny muted">{st.status}</span>}
                     </div>
                   </td>
-                  <td className="t2">{fit ? <><b style={{ color: 'var(--text)' }}>{fmtDate(fit.date)}</b><div className="tiny muted">{teamById(fit.team)?.name} · {fit.days} day{fit.days > 1 ? 's' : ''}</div></> : 'Not booked'}</td>
+                  <td className="t2">{fit ? <><b style={{ color: 'var(--text)' }}>{fmtDate(fit.date)}</b><div className="tiny muted">{crewTeam(fit)?.name} · {fit.days} day{fit.days > 1 ? 's' : ''}</div></> : 'Not booked'}</td>
                   <td><IconChevronRight size={16} color="#6b7a78" /></td>
                 </tr>
               );

@@ -10,7 +10,8 @@ import {
 import { PageHead, Card, CardHead, Tag, Avatar, Tabs, Tile, useToast, Empty } from '../components/ui';
 import { SurveyReport, QuoteDoc, FinalSurveyView, orderLines, FileChip } from '../components/Lifecycle';
 import { stepFor, ActionModal, PHASES, journeyList, roleTone, installOf, needsOffice } from '../components/Journey';
-import { staffById, teamById, IMG, gbp } from '../data/mock';
+import { staffById, IMG, gbp } from '../data/mock';
+import { crewTeam } from '../data/crew';
 import { useStore, fmtDate, addDays } from '../data/store';
 import { quoteTotals } from '../data/lifecycle';
 import { stageTone } from './Enquiries';
@@ -68,7 +69,7 @@ export default function EnquiryRecord({ recordId, from }: { recordId?: string; f
   const o = e.ops || {};
 
   // Who to remind depends on whose turn it is
-  const remindWho = step.role === 'Sales' ? s?.name : step.role === 'Surveyor' ? staffById(e.finalSurvey?.surveyor)?.name : step.role === 'Installer' ? teamById(install?.team)?.name : undefined;
+  const remindWho = step.role === 'Sales' ? s?.name : step.role === 'Surveyor' ? staffById(e.finalSurvey?.surveyor)?.name : step.role === 'Installer' ? crewTeam(install)?.name : undefined;
   const remind = () => {
     updEnq(e.id, {}, { kind: 'reminder', title: `Reminder sent to ${remindWho}`, body: `Please ${step.label.toLowerCase()} for ${e.name}${e.nextDue && !['Today', '—', 'Done'].includes(e.nextDue) ? ` (due ${e.nextDue})` : ''}.`, who: 'Sarah Mitchell' });
     toast(`Reminder sent to ${remindWho} · they’ll see it on their phone`);
@@ -250,10 +251,10 @@ export default function EnquiryRecord({ recordId, from }: { recordId?: string; f
                     <div className="between"><b>Installation booked</b><Tag tone="ok">In the diary</Tag></div>
                     {o.override && <div className="alert warn small"><IconShieldCheck size={16} /><div>Booked with a readiness override by <b>&nbsp;{o.override.by}&nbsp;</b> on {o.override.on}: {o.override.reason}</div></div>}
                     <Info items={[['Job pack', o.pack ? `Sent ${o.pack}` : 'Not sent yet'], ['Installer read it', o.installerReviewed ? 'Yes' : '—'], ['Progress', o.work === 'Submitted' ? 'Finished' : o.work ? `${o.progress || 0}% done` : 'Not started'], ['Completion', o.completion ? `${o.completion.on} · ${o.completion.photos} photos · ${o.completion.signed ? 'signed' : 'not signed'}` : '—']]} />
-                    <Info items={[['Team', teamById(install.team)?.name || '—'], ['Installers', teamById(install.team)?.members || '—'], ['Start', fmtDate(install.date, { weekday: 'long', day: 'numeric', month: 'long' })], ['Days', `${install.days} day${install.days > 1 ? 's' : ''}`], ['Ends', fmtDate(addDays(install.date, install.days - 1))], ['Customer told', 'Yes · email and portal']]} />
+                    <Info items={[['Installers', crewTeam(install)?.members || '—'], ['Arrival', install.time || '08:00 – 09:00'], ['Start', fmtDate(install.date, { weekday: 'long', day: 'numeric', month: 'long' })], ['Days', `${install.days} day${install.days > 1 ? 's' : ''}`], ['Ends', fmtDate(addDays(install.date, install.days - 1))], ['Customer told', 'Yes · email and portal']]} />
                   </>
                 ) : waiting ? (
-                  <div className="alert warn"><IconAlertTriangle size={18} /><div><b>In the installation diary, waiting for an installer.</b> It sits on {fmtDate(waiting.date)} as “needs installer”. {order?.status === 'Arrived' ? 'Use “Book installation” at the top, or assign a team from the diary.' : 'You can book once the delivery has arrived, or assign a team from the diary.'}</div><Link to="/diary" className="btn btn-dark btn-xs ml-auto">Open diary</Link></div>
+                  <div className="alert warn"><IconAlertTriangle size={18} /><div><b>In the installation diary, waiting for an installer.</b> It sits on {fmtDate(waiting.date)} as “needs installer”. {order?.status === 'Arrived' ? 'Use “Book installation” at the top, or choose installers from the diary.' : 'You can book once the delivery has arrived, or choose installers from the diary.'}</div><Link to="/diary" className="btn btn-dark btn-xs ml-auto">Open diary</Link></div>
                 ) : <Empty icon={<IconCalendarPlus size={22} />} title="Not booked yet" sub="Book installation once the delivery has arrived." />}
               </div>
             )}
@@ -278,7 +279,7 @@ export default function EnquiryRecord({ recordId, from }: { recordId?: string; f
           <Card>
             <CardHead title="People on this job" />
             <div className="list">
-              {([['Salesperson', s?.name, s?.initials], ['Surveyor', staffById(e.finalSurvey?.surveyor)?.name, staffById(e.finalSurvey?.surveyor)?.initials], ['Installers', install ? `${teamById(install.team)?.name} · ${teamById(install.team)?.members}` : undefined, install ? teamById(install.team)?.initials : undefined], ['Office', 'Sarah Mitchell', 'SM']] as [string, string | undefined, string | undefined][]).map(([role, name, ini]) => (
+              {([['Salesperson', s?.name, s?.initials], ['Surveyor', staffById(e.finalSurvey?.surveyor)?.name, staffById(e.finalSurvey?.surveyor)?.initials], ['Installers', install ? crewTeam(install)?.members : undefined, install ? crewTeam(install)?.initials : undefined], ['Office', 'Sarah Mitchell', 'SM']] as [string, string | undefined, string | undefined][]).map(([role, name, ini]) => (
                 <div key={role} className="hstack" style={{ gap: 10, padding: '10px 0' }}>
                   {name ? <Avatar i={ini || '?'} size={32} /> : <span className="avatar" style={{ width: 32, height: 32, background: 'var(--bg)', color: 'var(--muted)' }}><IconUser size={15} /></span>}
                   <div className="vstack" style={{ gap: 1 }}><span className="tiny muted">{role}</span><b style={{ fontSize: 13, color: name ? 'var(--text)' : 'var(--muted)' }}>{name || 'Not yet'}</b></div>

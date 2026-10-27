@@ -2,10 +2,15 @@ import React, { useState } from 'react';
 import { IconDownload, IconPrinter, IconTrendingUp, IconClock, IconTool, IconCircleCheck } from '@tabler/icons-react';
 import { PageHead, Card, CardHead, Dd, Tabs, Tile } from '../components/ui';
 import { BarChart, Donut, HBars } from '../components/charts';
-import { salesByMonth, enquirySources, teams, staff } from '../data/mock';
+import { salesByMonth, enquirySources, staff } from '../data/mock';
+import { useStore } from '../data/store';
+import { crewOf, onDay } from '../data/crew';
+import { monthCells } from '../components/Booking';
 
 export default function Reports() {
   const [tab, setTab] = useState('sales');
+  const { events, installers } = useStore();
+  const wd = monthCells('2026-10-01').filter(d => d.slice(0, 7) === '2026-10' && ![0, 6].includes(new Date(d + 'T12:00:00').getDay()));
   return (
     <>
       <PageHead title="Reports" crumbs={[{ label: 'Dashboard', to: '/' }, { label: 'Reports' }]} actions={<><Dd>Last 8 months</Dd><button className="btn btn-grey"><IconPrinter size={16} />Print</button><button className="btn btn-primary"><IconDownload size={16} />Download</button></>} />
@@ -28,7 +33,7 @@ export default function Reports() {
       {tab === 'jobs' && (
         <div className="row">
           <Card className="grow"><CardHead title="Average days in each stage" /><HBars rows={[['Enquiry to survey', 6], ['Survey to quote', 4], ['Quote to order', 5], ['Order to delivery', 11], ['Delivery to fitting', 5], ['Fitting to sign-off', 2]].map(([l, v]: any) => ({ label: l, value: v, max: 12, right: `${v} days`, color: v > 8 ? '#e0a100' : '#00c7a1' }))} /></Card>
-          <Card className="w-360"><CardHead title="Installer team diary use" /><HBars rows={teams.map(t => ({ label: `${t.name} · ${t.lead}`, value: t.id === 't1' ? 92 : t.id === 't2' ? 85 : 61, max: 100, right: `${t.id === 't1' ? 92 : t.id === 't2' ? 85 : 61}% booked`, color: t.color }))} /></Card>
+          <Card className="w-360"><CardHead title="Installer diary use" sub="Weekdays booked in October" /><HBars rows={installers.map(p => { const v = Math.round((wd.filter(d => events.some(ev => ev.kind !== 'leave' && crewOf(ev).includes(p.id) && onDay(ev, d))).length / wd.length) * 100); return { label: p.name, value: v, max: 100, right: `${v}% booked`, color: v > 40 ? '#0b6e5c' : '#00c7a1' }; })} /></Card>
         </div>
       )}
       {tab === 'team' && (

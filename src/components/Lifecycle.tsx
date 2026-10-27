@@ -7,7 +7,8 @@ import {
   IconPlugConnected, IconFileUpload, IconFileTypePdf, IconScan, IconLoader2, IconRuler, IconRulerMeasure, IconSearch, IconClock,
 } from '@tabler/icons-react';
 import { Modal, Field, Check, Avatar, Tag, useToast, Seg } from './ui';
-import { staffById, salespeople, surveyors, teams, teamById, IMG, gbp } from '../data/mock';
+import { staffById, salespeople, surveyors, IMG, gbp } from '../data/mock';
+import { crewOf, personById, getRoster } from '../data/crew';
 import { useStore, TODAY, addDays, fmtDate, EnquiryX, JobX } from '../data/store';
 import { Opening, OPENING_TYPES, Quote, quoteTotals, linesFromFp } from '../data/lifecycle';
 import { FPItem, FPSurvey, FinalCheck, fpTotals, makeFpSurvey, nextFpRef, guessOpeningsFor, OCR_UNSURE } from '../data/framepoint';
@@ -767,14 +768,14 @@ export function AddSnagModal({ e, onClose, onDone, kindDefault }: P & { kindDefa
   const [title, setTitle] = useState('');
   const [detail, setDetail] = useState('');
   const [sev, setSev] = useState('Minor');
-  const [who, setWho] = useState(fit?.team || j?.team || 't1');
+  const [who, setWho] = useState(crewOf(fit)[0] || 'tw');
   const [visit, setVisit] = useState(after > addDays(TODAY, 3) ? after : addDays(TODAY, 3));
-  const people = [...teams.map(t => ({ id: t.id, label: `${t.name} · ${t.members} (installers)` })), ...surveyors.map(s => ({ id: s.id, label: `${s.name} (surveyor)` }))];
-  const ownerName = teamById(who)?.name || staffById(who)?.name || '';
+  const people = [...getRoster().map(t => ({ id: t.id, label: `${t.name} (installer)` })), ...surveyors.map(s => ({ id: s.id, label: `${s.name} (surveyor)` }))];
+  const ownerName = personById(who)?.name || staffById(who)?.name || '';
   const save = () => {
     const id = 'SN-' + (119 + Math.floor(Math.random() * 80));
     set('snags', ss => [{ id, job: e.jobId!, customer: e.name, title, detail, reported: `Office · ${fmtDate(TODAY, { day: '2-digit', month: 'short' })}`, status: 'Open', tone: 'err', severity: sev, photo: e.photo, owner: ownerName, kind }, ...ss]);
-    if (teamById(who)) set('events', es => [...es, { id: 'sv' + Date.now(), team: who, date: visit, days: 1, kind: 'snag', title: `${first(e.name)} · ${kind.toLowerCase()} visit`, sub: `${e.jobId} · ${title}`, photo: e.photo, job: e.jobId }]);
+    if (personById(who)) set('events', es => [...es, { id: 'sv' + Date.now(), team: 'crew', crew: [who], date: visit, days: 1, kind: 'snag', title: `${first(e.name)} · ${kind.toLowerCase()} visit`, sub: `${e.jobId} · ${title}`, photo: e.photo, job: e.jobId }]);
     if (kind === 'Snag') updateJob(e.jobId!, { stage: 'Snag' as any }); else log(e.jobId!, `Aftercare request: ${title}`);
     updEnq(e.id, {}, { kind: 'note', title: `${kind} logged: ${title}`, body: `${detail} Assigned to ${ownerName}. Visit ${fmtDate(visit)}.`, who: ME });
     toast(`${kind} logged · ${ownerName} · visit ${fmtDate(visit)}`);

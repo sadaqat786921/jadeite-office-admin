@@ -175,81 +175,8 @@ export function DeliveryProblemModal({ onClose, deliveryRef }: { onClose: () => 
   );
 }
 
-/* Steps 18–21: book, reschedule or cancel an installation */
-export function BookInstallModal({ onClose, jobId, event, presetTeam, presetDate }: { onClose: () => void; jobId?: string; event?: DiaryEvent; presetTeam?: string; presetDate?: string }) {
-  const toast = useToast();
-  const { jobs, set, clash, updateJob, deliveries, enquiries, updEnq } = useStore();
-  const mode = event ? 'change' : 'new';
-  const [job, setJob] = useState(event?.job || jobId || 'JG-10477');
-  const [team, setTeam] = useState(event?.team || presetTeam || 't1');
-  const [start, setStart] = useState(event?.date || presetDate || '2026-10-26');
-  const [days, setDays] = useState(event?.days || 2);
-  const [reason, setReason] = useState('');
-  const [cancelAsk, setCancelAsk] = useState(false);
-  const j = jobs.find(x => x.id === job)!;
-  const hit = clash(team, start, days, event?.id);
-  const enq = enquiries.find(x => x.jobId === job);
-  const ov = enq?.ops?.override;
-  const delivered = enq?.ops ? !!enq.ops.received?.ok : j.stage !== 'Ordered' && j.stage !== 'Survey' && !(j.blocked || '').toLowerCase().includes('deliver') && !(j.blocked || '').toLowerCase().includes('supplier');
-  const checks: [string, boolean][] = [['Survey approved', j.stage !== 'Survey'], ['Order delivered and checked', delivered], ['Deposit received (Xero)', j.deposit > 0 && j.paid >= j.deposit], ['No open delivery problem', !j.blocked]];
-  const allReady = checks.every(c => c[1]);
-  const canBook = !hit && (allReady || !!ov || reason.trim().length > 4);
-  const save = () => {
-    if (mode === 'new') {
-      set('events', es => [...es.filter(x => !(x.team === 'un' && x.job === j.id)), { id: 'ev' + Date.now(), team, date: start, days, kind: 'install', title: `${j.customer.split(' ')[0]} · ${j.products.split(' ')[0]}`, sub: `${j.id} · ${j.address.split(', ')[1] || ''}`, photo: j.photo, job: j.id }]);
-      updateJob(j.id, { team, installDate: start, installDays: days, next: 'Installation', due: fmtDate(start) }, `Installation booked: ${teamById(team)?.name}, ${fmtDate(start)} for ${days} day${days > 1 ? 's' : ''}${allReady ? '' : ` · checks overridden — reason: ${reason}`}. Customer and installers told.`);
-      if (enq) updEnq(enq.id, { next: 'Installation', nextDue: fmtDate(start) }, { kind: 'note', title: `Installation booked · ${teamById(team)?.name}`, body: `${fmtDate(start, { weekday: 'long', day: 'numeric', month: 'long' })} for ${days} day${days > 1 ? 's' : ''} (${teamById(team)?.members}). Customer and installers told.`, who: 'Sarah Mitchell' });
-      toast(`Booked · ${teamById(team)?.name} · ${fmtDate(start)} · customer and installers told`);
-    } else {
-      set('events', es => es.map(e => (e.id === event!.id ? { ...e, team, date: start, days } : e)));
-      updateJob(j.id, { team, installDate: start, installDays: days, due: fmtDate(start) }, `Installation moved to ${teamById(team)?.name}, ${fmtDate(start)} for ${days} day${days > 1 ? 's' : ''}. Customer and installers told again.`);
-      toast('Booking changed · customer and installers told again');
-    }
-    onClose();
-  };
-  const cancel = () => {
-    set('events', es => es.filter(e => e.id !== event!.id));
-    updateJob(j.id, { team: undefined, installDate: undefined, next: 'Book installation', due: 'Today' }, `Installation on ${fmtDate(event!.date)} cancelled${reason ? ' — ' + reason : ''}. Back in the ready-to-book list.`);
-    toast('Booking cancelled · back in Ready to book · customer told'); onClose();
-  };
-  return (
-    <Modal title={mode === 'new' ? 'Book installation' : 'Change or cancel booking'} sub={mode === 'new' ? 'We check the job and the diary before anything is booked.' : 'Every change tells the customer and installers again and is saved in History.'} onClose={onClose} width={740}
-      footer={cancelAsk ? (
-        <><span className="small t2" style={{ marginRight: 'auto' }}>Cancel this installation and tell the customer?</span><button className="btn btn-grey" onClick={() => setCancelAsk(false)}>Keep booking</button><button className="btn btn-danger" onClick={cancel}>Yes, cancel it</button></>
-      ) : (
-        <>{mode === 'change' && <button className="btn btn-outline" style={{ marginRight: 'auto', color: 'var(--err)' }} onClick={() => setCancelAsk(true)}><IconCalendarOff size={16} />Cancel booking</button>}<button className="btn btn-grey" onClick={onClose}>Close</button><button className="btn btn-primary" disabled={!canBook} style={{ opacity: canBook ? 1 : 0.45 }} onClick={save}>{mode === 'new' ? 'Book and tell everyone' : 'Save change and tell everyone'}</button></>
-      )}>
-      <div className="hstack" style={{ gap: 14, padding: 12, borderRadius: 10, background: 'var(--bg)' }}>
-        <img src={IMG[j.photo]} style={{ width: 64, height: 64, borderRadius: 10, objectFit: 'cover' }} alt="" />
-        <div className="vstack" style={{ gap: 4, flex: 1 }}>
-          <select className="select" value={job} disabled={mode === 'change'} onChange={e => setJob(e.target.value)} style={{ height: 34, width: 340 }}>{jobs.map(x => <option key={x.id} value={x.id}>{x.id} · {x.customer}</option>)}</select>
-          <span className="small muted">{j.products} · {j.address}</span>
-        </div>
-      </div>
-      <div className="grid-2">
-        <Field label="Installer team"><select className="select" value={team} onChange={e => setTeam(e.target.value)}>{teams.map(t => <option key={t.id} value={t.id}>{t.name} · {t.members}</option>)}</select></Field>
-        <Field label="Start date"><input type="date" className="input" value={start} onChange={e => setStart(e.target.value)} /></Field>
-        <Field label="How many days?"><select className="select" value={days} onChange={e => setDays(+e.target.value)}>{[1, 2, 3, 4, 5].map(d => <option key={d} value={d}>{d} day{d > 1 ? 's' : ''}</option>)}</select></Field>
-        <Field label="Arrival window"><select className="select"><option>08:00 – 09:00</option><option>08:30 – 09:30</option><option>12:00 – 13:00</option></select></Field>
-      </div>
-      {hit ? (
-        <div className="alert err"><IconAlertTriangle size={18} /><div><b>{hit.kind === 'leave' ? 'Team leave' : 'Clash'}:</b> {teamById(team)?.name} {hit.kind === 'leave' ? `has ${hit.title.toLowerCase()}` : `is already booked for ${hit.title}`} ({fmtDate(hit.date)}{hit.days > 1 ? ` – ${fmtDate(addDays(hit.date, hit.days - 1))}` : ''}). Nothing is booked over a clash — pick another day or team.</div></div>
-      ) : (
-        <div className="alert ok"><IconCircleCheck size={18} /><div><b>No clash.</b> {teamById(team)?.name} is free from {fmtDate(start)} for {days} day{days > 1 ? 's' : ''}.</div></div>
-      )}
-      {mode === 'new' && (
-        <div className="card" style={{ padding: 14, gap: 10 }}>
-          <div className="between"><b>Ready-to-book checks</b>{allReady ? <Tag tone="ok">All done</Tag> : <Tag tone="err">Something is missing</Tag>}</div>
-          {checks.map(([l, ok]) => <span key={l} className="hstack small" style={{ gap: 8, color: ok ? 'var(--ok)' : 'var(--err)' }}>{ok ? <IconCircleCheck size={17} /> : <IconAlertTriangle size={17} />}<span style={{ color: ok ? 'var(--text)' : 'var(--err)', fontWeight: ok ? 400 : 600 }}>{l}</span></span>)}
-          {!allReady && ov && <div className="alert ok small"><IconCircleCheck size={16} /><div><b>Override approved by {ov.by}</b> on {ov.on}: {ov.reason}</div></div>}
-          {!allReady && !ov && <Field label="Reason to book anyway (required)" hint="Only use this if a manager agreed. The reason is saved in the job History."><input className="input" value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Director agreed — deposit arriving Monday" /></Field>}
-        </div>
-      )}
-      {mode === 'change' && cancelAsk && <Field label="Reason for cancelling (optional)"><input className="input" value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Customer asked to move it" /></Field>}
-      <Check on label="Tell the customer (email and portal) and the installers (phone app)" />
-    </Modal>
-  );
-}
+/* Steps 18–21: book, change or cancel an installation — see Booking.tsx */
+export { BookInstallModal } from './Booking';
 
 /* Step 24: job sign-off with the customer's signature */
 export function SignOffModal({ jobId, onClose }: { jobId: string; onClose: () => void }) {

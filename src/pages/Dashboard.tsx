@@ -9,7 +9,8 @@ import { Card, CardHead, Dd, PageHead, Tag, Avatar, Tile, Progress, Check, hexA 
 import { BarChart, Donut, AreaLine } from '../components/charts';
 import { NewEnquiryModal, BookInstallModal, AddTaskModal } from '../components/Forms';
 import { useStore, TODAY, fmtDate } from '../data/store';
-import { me, salesByMonth, topProducts, teams, IMG, gbp, teamById, staffById } from '../data/mock';
+import { me, salesByMonth, topProducts, IMG, gbp, staffById } from '../data/mock';
+import { crewPeople, busyWith } from '../data/crew';
 import { useRows, isJob } from '../components/derive';
 import { needsOffice, installOf, ActionModal } from '../components/Journey';
 import { useOrderRows } from './Supply';
@@ -24,7 +25,7 @@ export default function Dashboard() {
   const [alert, setAlert] = useState(true);
   const [modal, setModal] = useState<'enq' | 'book' | 'task' | null>(null);
   const [tab, setTab] = useState('Installations');
-  const { tasks, set, events, appts, snags, enquiries } = useStore();
+  const { tasks, set, events, appts, snags, enquiries, installers } = useStore();
   const [act, setAct] = useState<{ k: string; e: EnquiryX } | null>(null);
   const rows = useRows();
   const orderRows = useOrderRows();
@@ -44,7 +45,7 @@ export default function Dashboard() {
   const openSn = snags.filter(x => x.status !== 'Fixed');
   const money = (p: (i: any) => boolean) => inv.filter(p).reduce((a, i) => a + i.amount, 0);
   const upcomingList = [
-    ...events.filter(ev => ev.date >= TODAY && ev.team !== 'un' && ev.kind !== 'leave').map(ev => ({ k: ev.id, date: ev.date, title: ev.title, time: ev.kind === 'install' ? `${ev.days} day${ev.days > 1 ? 's' : ''} · fitting` : ev.kind, photo: ev.photo, who: [teamById(ev.team)?.initials || 'T'], color: ev.kind === 'install' ? '#0b6e5c' : ev.kind === 'snag' ? '#d64545' : '#00c7a1' })),
+    ...events.filter(ev => ev.date >= TODAY && ev.team !== 'un' && ev.kind !== 'leave').map(ev => ({ k: ev.id, date: ev.date, title: ev.title, time: ev.kind === 'install' ? `${ev.days} day${ev.days > 1 ? 's' : ''} · fitting` : ev.kind, photo: ev.photo, who: crewPeople(ev).map(p => p.initials).slice(0, 3), color: ev.kind === 'install' ? '#0b6e5c' : ev.kind === 'snag' ? '#d64545' : '#00c7a1' })),
     ...appts.filter(a => a.date >= TODAY && a.status !== 'Done').map(a => ({ k: a.id, date: a.date, title: `${a.kind} · ${a.customer}`, time: a.time, photo: 'house' as keyof typeof IMG, who: [staffById(a.who)?.initials || 'S'], color: '#00c7a1' })),
   ].sort((a, b) => (a.date < b.date ? -1 : 1));
   const marked = new Set(upcomingList.filter(u => u.date.startsWith('2026-10')).map(u => +u.date.slice(8)));
@@ -178,13 +179,14 @@ export default function Dashboard() {
             </div>
           </Card>
           <Card>
-            <CardHead title="Installer teams" right={<Link to="/diary" className="link"><IconCalendarEvent size={14} />View</Link>} />
-            {teams.map(t => (
-              <div key={t.id} className="card" style={{ padding: 10, gap: 10 }}>
-                <div className="hstack" style={{ gap: 10 }}><span className="tile" style={{ width: 24, height: 24, borderRadius: 5, background: 'var(--deep)', color: '#fff', fontSize: 9, fontWeight: 700 }}>{t.initials}</span><b style={{ fontSize: 13 }}>{t.name} · {t.lead}</b></div>
-                <Progress value={t.progress} color={t.color} height={4} />
-              </div>
-            ))}
+            <CardHead title="Installers today" right={<Link to="/diary" className="link"><IconCalendarEvent size={14} />Diary</Link>} />
+            {installers.map(p => { const h = busyWith(p.id, TODAY, 1, events); return (
+              <Link key={p.id} to={`/diary/installer/${p.id}`} className="hstack" style={{ gap: 10, padding: '4px 0' }}>
+                <Avatar i={p.initials} size={28} bg={p.color} fg="#fff" />
+                <div className="vstack" style={{ gap: 1, flex: 1, minWidth: 0 }}><b style={{ fontSize: 12.5 }}>{p.name}</b><span className="tiny muted" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h ? h.title : 'Nothing booked'}</span></div>
+                <Tag tone={!h ? 'ok' : h.kind === 'leave' ? 'grey' : 'jade'}>{!h ? 'Free' : h.kind === 'leave' ? 'Away' : h.kind === 'install' ? 'Fitting' : h.kind === 'snag' ? 'Visit' : 'Workshop'}</Tag>
+              </Link>
+            ); })}
           </Card>
           <Card>
             <CardHead title="Job health" right={<Dd icon={<IconSun size={14} />}>This month</Dd>} />

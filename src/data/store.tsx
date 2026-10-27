@@ -1,8 +1,9 @@
 // Shared, in-memory state so every Office Admin flow updates the whole platform.
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
-const KEY = 'jadeite-office-admin-demo-v7';
+const KEY = 'jadeite-office-admin-demo-v8';
 import * as M from './mock';
+import { setRoster } from './crew';
 import { SEED, EXTRA_ENQUIRIES, Lifecycle, Comm, seedValue } from './lifecycle';
 
 export const TODAY = '2026-10-16';
@@ -16,23 +17,29 @@ const rangesOverlap = (s1: string, d1: number, s2: string, d2: number) => s1 <= 
 export type HistoryItem = { when: string; who: string; what: string };
 export type Task = { id: string; title: string; owner: string; due: string; job?: string; done: boolean };
 export type Appt = { id: string; kind: 'Sales visit' | 'Survey' | 'Follow-up call' | 'Snag visit'; customer: string; who: string; date: string; time: string; job?: string; address?: string; synced: boolean; status: string };
-export type DiaryEvent = { id: string; team: string; date: string; days: number; kind: 'install' | 'survey' | 'delivery' | 'leave' | 'snag'; title: string; sub: string; photo: keyof typeof M.IMG; job?: string };
+// team is 'crew' for bookings made with individual installers, or 'un' while a job waits for installers.
+export type DiaryEvent = { id: string; team: string; crew?: string[]; time?: string; note?: string; date: string; days: number; kind: 'install' | 'survey' | 'delivery' | 'leave' | 'snag'; title: string; sub: string; photo: keyof typeof M.IMG; job?: string };
 export type Email = { id: string; from: string; subject: string; preview: string; when: string; linked?: string };
 export type EnquiryX = M.Enquiry & Lifecycle & { type: 'Sales' | 'Existing job' | 'Aftercare'; followUp?: string; stageDays: number; routedTo?: string };
 export type Order = { ref: string; job: string; customer: string; supplier: string; ordered: string; confirmed: boolean; expected: string; frames: string; status: string; tone: string; checks: number; items?: string; confirmRef?: string; enquiry?: string };
 export type JobX = M.Job & { history: HistoryItem[]; signedOff?: { by: string; when: string; refused?: string }; installDate?: string; installDays?: number };
 
+const C = (crew: string[], e: Omit<DiaryEvent, 'team' | 'crew'>): DiaryEvent => ({ team: 'crew', crew, ...e });
 const initialEvents: DiaryEvent[] = [
-  { id: 'ev1', team: 't1', date: '2026-10-13', days: 3, kind: 'install', title: 'Smith · windows', sub: 'JG-10482 · Leicester', photo: 'house', job: 'JG-10482' },
-  { id: 'ev2', team: 't2', date: '2026-10-12', days: 3, kind: 'install', title: 'Khan · orangery roof', sub: 'JG-10455 · Harrogate', photo: 'orangery', job: 'JG-10455' },
-  { id: 'ev3', team: 't2', date: '2026-10-16', days: 2, kind: 'install', title: 'Hartley Dental', sub: 'JG-10493 · 3 days', photo: 'window', job: 'JG-10493' },
-  { id: 'ev4', team: 't3', date: '2026-10-12', days: 1, kind: 'delivery', title: 'Workshop prep', sub: 'Glazing beads', photo: 'window' },
-  { id: 'ev5', team: 't3', date: '2026-10-14', days: 2, kind: 'snag', title: 'Patel · snag visit', sub: 'JG-10471 · handle', photo: 'bifold', job: 'JG-10471' },
-  { id: 'ev6', team: 't1', date: '2026-10-22', days: 2, kind: 'install', title: 'Smith · windows & door', sub: 'JG-10482 · Leicester', photo: 'house', job: 'JG-10482' },
-  { id: 'ev7', team: 't2', date: '2026-10-08', days: 2, kind: 'install', title: 'Patel · bi-folds', sub: 'JG-10471 · Oadby', photo: 'bifold', job: 'JG-10471' },
-  { id: 'ev8', team: 't1', date: '2026-09-29', days: 1, kind: 'install', title: 'Greens · front door', sub: 'JG-10433 · Ilkley', photo: 'door', job: 'JG-10433' },
-  { id: 'ev9', team: 't2', date: '2026-06-09', days: 2, kind: 'install', title: 'Cooper · windows', sub: 'JG-10398 · Ripon', photo: 'window', job: 'JG-10398' },
-  { id: 'lv1', team: 't3', date: '2026-10-21', days: 3, kind: 'leave', title: 'Tom Wright on leave', sub: 'Annual leave', photo: 'window' },
+  C(['ak', 'jp', 'cr'], { id: 'ev7', date: '2026-10-08', days: 2, kind: 'install', time: '08:00 – 09:00', title: 'Mrs Patel · bi-folds', sub: 'JG-10471 · Oadby', photo: 'bifold', job: 'JG-10471' }),
+  C(['ak', 'jp', 'sp'], { id: 'ev2', date: '2026-10-12', days: 3, kind: 'install', time: '08:00 – 09:00', title: 'Mr Khan · orangery roof', sub: 'JG-10455 · Harrogate', photo: 'orangery', job: 'JG-10455' }),
+  C(['bc'], { id: 'ev4', date: '2026-10-12', days: 1, kind: 'delivery', title: 'Workshop · glazing beads', sub: 'Head office workshop', photo: 'window' }),
+  C(['dh', 'lb'], { id: 'ev1', date: '2026-10-13', days: 1, kind: 'delivery', title: 'Workshop · frame prep', sub: 'Smiths order', photo: 'window' }),
+  C(['tw'], { id: 'ev5', date: '2026-10-14', days: 1, kind: 'snag', time: '09:00 – 10:00', title: 'Mrs Patel · snag visit', sub: 'JG-10471 · handle', photo: 'bifold', job: 'JG-10471' }),
+  C(['ak', 'jp'], { id: 'ev3', date: '2026-10-16', days: 2, kind: 'install', time: '08:00 – 09:00', title: 'Hartley Dental · 10 windows', sub: 'JG-10493 · Oadby', photo: 'house', job: 'JG-10493' }),
+  C(['bc', 'sp'], { id: 'ev10', date: '2026-10-19', days: 2, kind: 'delivery', title: 'Workshop · frame prep', sub: 'Head office workshop', photo: 'window' }),
+  C(['tw'], { id: 'lv1', date: '2026-10-21', days: 3, kind: 'leave', title: 'Tom Wright on leave', sub: 'Annual leave', photo: 'window' }),
+  C(['dh', 'lb', 'cr'], { id: 'ev6', date: '2026-10-22', days: 2, kind: 'install', time: '08:00 – 09:00', title: 'Sarah & David Smith · windows & door', sub: 'JG-10482 · Leicester', photo: 'house', job: 'JG-10482' }),
+  C(['sp'], { id: 'lv2', date: '2026-10-26', days: 2, kind: 'leave', title: 'Sam Price at college', sub: 'Apprentice college days', photo: 'window' }),
+  C(['cr', 'sp', 'bc'], { id: 'ev11', date: '2026-10-29', days: 1, kind: 'delivery', title: 'Training day', sub: 'Working at height refresher', photo: 'window' }),
+  C(['lb'], { id: 'lv3', date: '2026-11-03', days: 3, kind: 'leave', title: 'Lee Brooks on leave', sub: 'Annual leave', photo: 'window' }),
+  C(['dh', 'cr'], { id: 'ev8', date: '2026-09-29', days: 1, kind: 'install', time: '08:00 – 09:00', title: 'The Greens · front door', sub: 'JG-10433 · Ilkley', photo: 'door', job: 'JG-10433' }),
+  C(['ak', 'jp'], { id: 'ev9', date: '2026-06-09', days: 2, kind: 'install', time: '08:00 – 09:00', title: 'Mrs Cooper · windows', sub: 'JG-10398 · Ripon', photo: 'window', job: 'JG-10398' }),
 ];
 
 const initialTasks: Task[] = [
@@ -82,7 +89,7 @@ const surveys0 = M.surveys.map(s => ({ ...s }));
 
 type State = {
   enquiries: EnquiryX[]; jobs: JobX[]; tasks: Task[]; appts: Appt[]; events: DiaryEvent[]; emails: Email[];
-  snags: typeof snags0; deliveries: typeof deliveries0; surveys: typeof surveys0; orders: Order[];
+  snags: typeof snags0; deliveries: typeof deliveries0; surveys: typeof surveys0; orders: Order[]; installers: M.Installer[];
 };
 type Ctx = State & {
   set: <K extends keyof State>(k: K, fn: (v: State[K]) => State[K]) => void;
@@ -98,11 +105,12 @@ const StoreCtx = createContext<Ctx>(null as any);
 export const useStore = () => useContext(StoreCtx);
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
-  const fresh: State = { enquiries: enq0, jobs: jobs0, tasks: initialTasks, appts: initialAppts, events: initialEvents, emails: initialEmails, snags: snags0, deliveries: deliveries0, surveys: surveys0, orders: orders0 };
+  const fresh: State = { enquiries: enq0, jobs: jobs0, tasks: initialTasks, appts: initialAppts, events: initialEvents, emails: initialEmails, snags: snags0, deliveries: deliveries0, surveys: surveys0, orders: orders0, installers: M.installers };
   const [s, setS] = useState<State>(() => {
     try { const raw = sessionStorage.getItem(KEY); if (raw) return { ...fresh, ...JSON.parse(raw) }; } catch {}
     return fresh;
   });
+  setRoster(s.installers);
   useEffect(() => { try { sessionStorage.setItem(KEY, JSON.stringify(s)); } catch {} }, [s]);
   const reset = () => { try { sessionStorage.removeItem(KEY); } catch {} setS(fresh); };
   const set: Ctx['set'] = (k, fn) => setS(prev => ({ ...prev, [k]: fn(prev[k]) }));
