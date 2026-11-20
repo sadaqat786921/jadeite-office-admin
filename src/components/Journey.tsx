@@ -88,6 +88,7 @@ export function stepFor(e: EnquiryX, ctx: JourneyCtx): Step {
   const fit = installOf(e, ctx.events);
   if (!fit) return { phase: 'ready', key: 'book', label: 'Book installation', icon: I(IconCalendarPlus), role: 'Office', status: 'Ready to book', hint: 'Pick the date and arrival time, then choose the installers who are free that day.' };
   const team = crewTeam(fit)!.name;
+  if (!o.stagePaid && !o.stageOverride && !o.work) return { phase: 'install', key: 'stage', label: 'Check stage payment', icon: I(IconCurrencyPound), role: 'Office', status: `Booked ${fmtDate(fit.date)} · stage payment due`, hint: 'The stage payment invoice goes out 7 days before fitting. Check it shows as paid in Xero before the installers go. If it has not come, move the fitting or ask a director.' };
   if (!o.pack) return { phase: 'install', key: 'pack', label: 'Release job pack', icon: I(IconFolderShare), role: 'Office', status: `Booked ${fmtDate(fit.date)} · ${team}`, hint: 'Send the installers their job pack and send the customer how to get ready.' };
   if (!o.work) return { phase: 'install', key: 'start', label: 'Installer started', icon: I(IconHammer), role: 'Installer', status: `Fitting ${fmtDate(fit.date)} · ${team}`, hint: `${team} starts on ${fmtDate(fit.date)}. They update progress from their phone.`, wait: true };
   if (o.work === 'Started') return { phase: 'install', key: 'submit', label: 'Completion submitted', icon: I(IconClipboardCheck), role: 'Installer', status: `${team} working · ${o.progress || 0}% done`, hint: `${team} sends the checklist, photos, customer signature and any snags when they finish.`, wait: true };
@@ -142,6 +143,8 @@ export function journeyList(e: EnquiryX, ctx: JourneyCtx): { label: string; role
     { label: 'Delivery checked', role: 'Office', done: !!o.received?.ok, when: o.received?.on },
     { label: 'Readiness override (only if needed)', role: 'Director', done: !!o.override, when: o.override?.by, skip: !o.override },
     { label: 'Installation booked', role: 'Office', done: !!fit, when: fit ? fmtDate(fit.date) : undefined },
+    { label: 'Stage payment received (Xero)', role: 'Office', done: !!o.stagePaid || !!o.work, when: o.stagePaid || (o.stageOverride ? 'Not yet · director agreed to fit' : undefined) },
+    { label: 'Fit before stage payment (only if needed)', role: 'Director', done: !!o.stageOverride, when: o.stageOverride?.by, skip: !o.stageOverride },
     { label: 'Job pack released · customer told how to prepare', role: 'Office', done: !!o.pack, when: o.pack },
     { label: 'Installation', role: 'Installer', done: o.work === 'Submitted', when: o.work === 'Started' ? `${o.progress || 0}% done` : undefined },
     { label: 'Completion submitted · signed by customer', role: 'Installer', done: !!o.completion, when: o.completion?.on },
@@ -448,6 +451,53 @@ export function OverrideModal({ e, onClose, onDone }: P) {
   );
 }
 
+/* ===================== Stage payment (40%) — checked in Xero before the installers go ===================== */
+export function StagePaymentModal({ e, onClose, onDone }: P) {
+  const toast = useToast();
+  const { updEnq, events } = useStore();
+  const t = totalsOf(e);
+  const fit = installOf(e, events);
+  const inv = `INV-${parseInt(e.id.replace(/\D/g, ''), 10) + 1200}`;
+  const late = !!fit && fit.date <= TODAY;
+  const [state, setState] = useState<'unpaid' | 'checking' | 'paid'>('unpaid');
+  const [ask, setAsk] = useState(false);
+  const [by, setBy] = useState('James Whitfield (Director)');
+  const [reason, setReason] = useState('');
+  const check = () => { setState('checking'); window.setTimeout(() => setState('paid'), 900); };
+  const remind = () => {
+    updEnq(e.id, { next: 'Check stage payment', nextDue: fit ? fmtDate(addDays(fit.date, -2)) : 'Soon' }, { kind: 'reminder', title: 'Stage payment reminder sent', body: `Dear ${e.name}, a friendly reminder that your stage payment of ${gbp(t.stage || 0)} (${inv}) is due before your fitting on ${fit ? fmtDate(fit.date) : 'the booked date'}. You can pay by card or bank transfer from your portal.`, who: ME });
+    toast('Reminder sent to the customer'); onClose();
+  };
+  const save = () => {
+    updEnq(e.id, x => ({ ops: { ...(x.ops || {}), stagePaid: todayShort() }, next: 'Release job pack', nextDue: 'Today' }), { kind: 'system', title: `Stage payment received · ${gbp(t.stage || 0)}`, body: `${inv} matched in Xero. The installers can go ahead on ${fit ? fmtDate(fit.date) : 'the booked date'}.`, who: 'Xero' });
+    toast('Stage payment matched in Xero · next, release the job pack'); onDone?.('install'); onClose();
+  };
+  const override = () => {
+    updEnq(e.id, x => ({ ops: { ...(x.ops || {}), stageOverride: { by, reason, on: todayShort() } }, next: 'Release job pack', nextDue: 'Today' }), { kind: 'system', title: `Fit before stage payment · approved by ${by}`, body: `${reason} The ${gbp(t.stage || 0)} stage payment (${inv}) is still due and stays on Payments.`, who: ME });
+    toast('Approval saved · the stage payment stays on Payments to chase'); onDone?.('install'); onClose();
+  };
+  if (ask) return (
+    <Modal title="Fit before the stage payment arrives" sub={`${e.name} · needs a director's approval`} onClose={onClose} width={560} footer={<Foot onClose={() => setAsk(false)} onSave={override} disabled={reason.trim().length < 8} label="Save approval" icon={<IconUserCheck size={16} />} />}>
+      <div className="alert warn small"><IconAlertTriangle size={16} /><div>Only go ahead if a director agrees. The approval and reason are saved, and the {gbp(t.stage || 0)} stays on Payments until it is paid.</div></div>
+      <Field label="Approved by"><select className="select" value={by} onChange={x => setBy(x.target.value)}><option>James Whitfield (Director)</option><option>Mike Jadeite (Director)</option></select></Field>
+      <Field label="Reason (required)"><textarea className="textarea" value={reason} onChange={x => setReason(x.target.value)} placeholder="e.g. Customer paid by bank transfer this morning. It shows in Xero tomorrow." /></Field>
+    </Modal>
+  );
+  return (
+    <Modal title="Check the stage payment" sub={`${e.name} · fitting ${fit ? fmtDate(fit.date) : ''}`} onClose={onClose} width={580} footer={<Foot onClose={onClose} onSave={save} disabled={state !== 'paid'} label="Paid · carry on" icon={<IconCurrencyPound size={16} />} />}>
+      <span className="small t2">The stage payment is 40% of the job. The invoice goes out 7 days before fitting and must be paid before the installers go.</span>
+      <div className="card" style={{ padding: 14, gap: 10, background: 'var(--bg)' }}>
+        <span className="hstack" style={{ gap: 8 }}><span className="avatar" style={{ width: 26, height: 26, background: '#13b5ea', color: '#fff', fontSize: 11 }}>X</span><b style={{ fontSize: 13 }}>Stage payment in Xero</b></span>
+        <div className="between small"><span className="t2">Deposit (50%) · {e.ops?.deposit?.inv || ''}</span><span className="hstack" style={{ gap: 8 }}><b>{gbp(t.deposit)}</b><Tag tone="ok">Paid</Tag></span></div>
+        <div className="between small"><span className="t2">{inv} · stage payment (40%)</span><span className="hstack" style={{ gap: 8 }}><b>{gbp(t.stage || 0)}</b>{state === 'paid' ? <Tag tone="ok">Paid · matched</Tag> : state === 'checking' ? <Tag tone="info">Checking…</Tag> : <Tag tone={late ? 'err' : 'warn'}>{late ? 'Overdue' : 'Not paid yet'}</Tag>}</span></div>
+        {state !== 'paid' && <div className="hstack" style={{ gap: 8 }}><button className="btn btn-outline btn-sm" onClick={remind}><IconBellRinging size={14} />Send reminder</button><button className="btn btn-dark btn-sm" disabled={state === 'checking'} onClick={check}>Check Xero for payment</button></div>}
+      </div>
+      {state === 'paid' ? <div className="alert info small"><IconInfoCircle size={16} />When you save, the next step is to release the job pack to the installers.</div>
+        : <div className="alert warn small"><IconAlertTriangle size={16} /><div>The installers should not go until this is paid. If it does not come in time, move the fitting from the diary, or <button className="link small" onClick={() => setAsk(true)}>ask a director to fit anyway</button>.</div></div>}
+    </Modal>
+  );
+}
+
 /* ===================== 19. Pre-installation preparation ===================== */
 export function JobPackModal({ e, onClose, onDone }: P) {
   const toast = useToast();
@@ -607,6 +657,7 @@ export function CloseProjectModal({ e, onClose, onDone }: P) {
   const [on, setOn] = useState(items.map(() => false));
   const [publish, setPublish] = useState(true);
   const t = totalsOf(e);
+  const stageOk = !!e.ops?.stagePaid || (!!e.ops?.work && !e.ops?.stageOverride);
   const save = () => {
     updEnq(e.id, x => ({ ops: { ...(x.ops || {}), closed: todayShort() }, next: 'Check final payment', nextDue: fmtDate(addDays(TODAY, 7)) }),
       { kind: 'email-out', title: 'Your project is complete', body: `Dear ${e.name}, thank you for choosing Jadeite. Your 10-year guarantee, FENSA certificate and care guide are now in your portal. Your final invoice for ${gbp(t.completion || 0)} has been sent.`, who: ME });
@@ -620,6 +671,11 @@ export function CloseProjectModal({ e, onClose, onDone }: P) {
       <div className="vstack" style={{ gap: 8 }}>
         <Check on={publish} onChange={setPublish} label="Publish these to the customer portal" />
         <div className="hstack" style={{ gap: 10, flexWrap: 'wrap' }}>{['10-year guarantee.pdf', 'FENSA certificate.pdf', 'Care guide.pdf'].map(f => <FileChip key={f} name={f} sub="For the customer" />)}</div>
+      </div>
+      <div className="vstack" style={{ gap: 6 }}>
+        <b style={{ fontSize: 13 }}>Payments so far</b>
+        <XeroBox rows={[['Deposit (50%)', gbp(t.deposit), 'ok'], ['Stage payment (40%)', gbp(t.stage || 0), stageOk ? 'ok' : 'err']]} />
+        <span className="tiny muted">{stageOk ? `For information. The final invoice for ${gbp(t.completion || 0)} goes out when you close.` : `The stage payment has still not been paid. Chase it from Payments. The final invoice for ${gbp(t.completion || 0)} goes out when you close.`}</span>
       </div>
       <span className="tiny muted">If anything does not meet the normal rules, ask a director to approve before closing.</span>
     </Modal>
@@ -680,6 +736,7 @@ export function ActionModal({ k, e, onClose, onDone }: { k: string; e: EnquiryX;
     case 'issue': return <ResolveIssueModal {...p} />;
     case 'override': return <OverrideModal {...p} />;
     case 'book': return e.jobId ? <BookInstallModal jobId={e.jobId} presetDate={waiting?.date} onClose={() => { onClose(); onDone?.('install'); }} /> : null;
+    case 'stage': return <StagePaymentModal {...p} />;
     case 'pack': return <JobPackModal {...p} />;
     case 'start': case 'progress': return <InstallerProgressModal {...p} />;
     case 'submit': return <CompletionModal {...p} />;
